@@ -435,6 +435,15 @@ describe("copyText", () => {
     expect(exec).toHaveBeenCalledWith("copy");
   });
 
+  it("falls back to execCommand when the clipboard hangs forever", async () => {
+    // real browsers can leave writeText pending when focus/permission is missing
+    withClipboard({ writeText: () => new Promise(() => undefined) });
+    const exec = vi.fn().mockReturnValue(true);
+    Object.defineProperty(document, "execCommand", { value: exec, configurable: true });
+    await expect(copyText("hi")).resolves.toBe(true);
+    expect(exec).toHaveBeenCalledWith("copy");
+  }, 10000);
+
   it("returns false when both paths fail", async () => {
     withClipboard(undefined);
     Object.defineProperty(document, "execCommand", {

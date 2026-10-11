@@ -450,15 +450,26 @@ export function downloadText(filename: string, text: string, mime = "text/plain"
  * download can be silently blocked — the backup itself must keep an escape
  * hatch. Returns false when the browser refuses every copy path; the caller
  * shows the text instead.
+ *
+ * `writeText` can hang forever without user gesture/focus (permission prompt
+ * never resolves), so it races a timeout and falls through to execCommand.
  */
 export async function copyText(text: string): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
+      await Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("clipboard-timeout")), 1500);
+        }),
+      ]);
       return true;
     }
   } catch {
     /* fall through to the selection-based path */
+  } finally {
+    clearTimeout(timer);
   }
   try {
     const area = document.createElement("textarea");

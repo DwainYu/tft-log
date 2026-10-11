@@ -71,6 +71,7 @@ export function DataPage() {
   const [draft, setDraft] = useState<SessionDraft>(emptyDraft);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [scope, setScope] = useState<ExportScope>("all");
+  const [backupText, setBackupText] = useState<string | null>(null);
 
   if (counts === undefined) return <Spinner label="读取存储" />;
   const total = counts.matches + counts.decisions + counts.reviews + counts.trainingGoals;
@@ -128,8 +129,6 @@ export function DataPage() {
    * a copy path keeps the backup escape hatch working. If even the clipboard
    * refuses, the text goes into a selectable dialog instead of vanishing.
    */
-  const [backupText, setBackupText] = useState<string | null>(null);
-
   async function onCopyBackup() {
     setBusy(true);
     try {
