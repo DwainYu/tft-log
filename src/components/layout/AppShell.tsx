@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   Menu,
   Moon,
-  Plus,
   Sun,
   Target,
   X,
@@ -143,11 +142,17 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 function Brand() {
+  const { dark } = useTheme();
   return (
     <div className="flex items-center gap-2">
-      <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-gold-500/40 bg-gold-500/10 text-gold-300">
-        <Plus size={16} strokeWidth={3} />
-      </span>
+      <img
+        src={`${import.meta.env.BASE_URL}${dark ? "logo-dark.png" : "logo.png"}`}
+        alt=""
+        aria-hidden="true"
+        width={32}
+        height={32}
+        className="size-8 shrink-0"
+      />
       <div className="leading-tight">
         <div className="text-sm font-semibold tracking-wide text-ink-50">TFT 弈记</div>
         <div className="text-[10px] tracking-[0.16em] text-ink-600">TFT 对局记录与复盘</div>
