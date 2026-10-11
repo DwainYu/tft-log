@@ -190,6 +190,27 @@ describe("PlacementTrendChart", () => {
     expect(container.querySelectorAll(".recharts-yAxis .recharts-cartesian-axis-tick")).toHaveLength(8);
   });
 
+  it("draws no gridline at the plot top — only ranks 2 to 8 get one", () => {
+    const { container } = render(<PlacementTrendChart data={trend(8)} avg={4.2} />);
+    const tickY = (rank: string) =>
+      Number(
+        [...container.querySelectorAll(".recharts-yAxis-tick-labels text")].find(
+          (t) => t.textContent === rank,
+        )?.getAttribute("y"),
+      );
+    const gridYs = [
+      ...container.querySelectorAll(".recharts-cartesian-grid-horizontal line"),
+    ].map((l) => Number(l.getAttribute("y1")));
+
+    // the rank-1 line sits on the plot's top edge and reads as a stray border
+    expect(gridYs).toHaveLength(7);
+    expect(gridYs).not.toContain(tickY("1"));
+    // every remaining rank line is still drawn at its own tick
+    for (const rank of ["2", "3", "4", "5", "6", "7", "8"]) {
+      expect(gridYs).toContain(tickY(rank));
+    }
+  });
+
   it("is not clickable without a drill-down target", () => {
     render(<PlacementTrendChart data={trend(6)} avg={4.2} />);
     expect(screen.queryAllByRole("button")).toHaveLength(0);

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactElement } from "react";
 import {
   CartesianGrid,
   Line,
@@ -8,6 +8,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type CartesianGridProps,
   type TooltipContentProps,
 } from "recharts";
 import { chartTheme, MIN_SAMPLES } from "./chart-theme";
@@ -28,6 +29,36 @@ export interface TrendPoint {
   /** Drill-down target: a point always belongs to exactly one match. */
   id: string;
 }
+
+type GridLineProps = Parameters<
+  Extract<NonNullable<CartesianGridProps["horizontal"]>, (props: never) => ReactElement>
+>[0];
+
+// The rank-1 gridline lands exactly on the plot area's top edge, where it
+// reads as a stray border above the axis rather than a ranking reference.
+// Draw every other tick line as Recharts would, and skip only that one.
+const horizontalGridLine = (props: GridLineProps) => {
+  const { x1, y1, x2, y2, offset, stroke, strokeWidth, strokeOpacity, strokeDasharray } = props;
+  if (Math.abs(y1 - offset.top) < 0.5) return <g />;
+  return (
+    <line
+      x1={x1}
+      y1={y1}
+      x2={x2}
+      y2={y2}
+      fill="none"
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeOpacity={strokeOpacity}
+      // Recharts allows readonly arrays; the DOM attribute wants a joined string.
+      strokeDasharray={
+        typeof strokeDasharray === "string" || strokeDasharray == null
+          ? strokeDasharray
+          : String(strokeDasharray)
+      }
+    />
+  );
+};
 
 /**
  * Rank trend, 1st place on top; the dashed reference line is the window average.
@@ -91,7 +122,7 @@ export function PlacementTrendChart({
     <div className="h-48 w-full sm:h-56 lg:h-64">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-          <CartesianGrid stroke={t.CHART.grid} vertical={false} />
+          <CartesianGrid stroke={t.CHART.grid} vertical={false} horizontal={horizontalGridLine} />
           <XAxis
             dataKey="index"
             // Several games land on the same day. A date is only labelled on
