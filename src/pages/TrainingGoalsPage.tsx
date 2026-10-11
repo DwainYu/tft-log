@@ -189,9 +189,13 @@ export function TrainingGoalsPage() {
               variant="danger"
               onClick={async () => {
                 if (!deleting) return;
-                await removeGoal(deleting.id);
-                setDeleting(null);
-                toast.push("目标已删除");
+                try {
+                  await removeGoal(deleting.id);
+                  setDeleting(null);
+                  toast.push("目标已删除");
+                } catch (err) {
+                  toast.push(errorMessage(err), "warn");
+                }
               }}
             >
               删除

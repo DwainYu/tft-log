@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import {
   BarChart3,
+  BookOpen,
   CalendarRange,
   ClipboardList,
   Database,
@@ -29,6 +30,7 @@ const NAV: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
   { to: "/weekly", label: "周复盘", icon: CalendarRange },
   { to: "/drafts", label: "草稿箱", icon: FileClock },
   { to: "/data", label: "数据", icon: Database },
+  { to: "/guide", label: "使用指南", icon: BookOpen },
 ];
 
 /**

@@ -3,6 +3,7 @@ import { AppShell } from "./components/layout/AppShell";
 import { QuickAddProvider } from "./components/matches/QuickAddProvider";
 import { ToastProvider } from "./components/ui/Toast";
 import { ThemeProvider } from "./lib/theme";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { SessionProvider } from "./services/session-context";
 import { DashboardPage } from "./pages/DashboardPage";
 import { MatchesPage } from "./pages/MatchesPage";
@@ -15,6 +16,7 @@ import { TrainingGoalsPage } from "./pages/TrainingGoalsPage";
 import { WeeklyReviewPage } from "./pages/WeeklyReviewPage";
 import { DataPage } from "./pages/DataPage";
 import { DataCenterPage } from "./pages/DataCenterPage";
+import { GuidePage } from "./pages/GuidePage";
 
 export function App() {
   return (
@@ -24,7 +26,8 @@ export function App() {
           <SessionProvider>
             <QuickAddProvider>
               <AppShell>
-                <Routes>
+                <ErrorBoundary>
+                  <Routes>
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/matches" element={<MatchesPage />} />
                 <Route path="/matches/new" element={<MatchFormPage mode="create" />} />
@@ -37,9 +40,11 @@ export function App() {
                 <Route path="/goals" element={<TrainingGoalsPage />} />
                 <Route path="/weekly" element={<WeeklyReviewPage />} />
                 <Route path="/data" element={<DataPage />} />
+                <Route path="/guide" element={<GuidePage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </AppShell>
+                </Routes>
+                </ErrorBoundary>
+              </AppShell>
           </QuickAddProvider>
         </SessionProvider>
       </ToastProvider>

@@ -20,7 +20,7 @@ import {
   type TrainingSession,
 } from "../domain/types";
 import { nowIso } from "../lib/utils";
-import { toDate } from "../lib/wallclock";
+import { toDate, isValidWallClock } from "../lib/wallclock";
 import { validateMatchStaticData, encounterIdOrUndefined } from "../data/tft/match-links";
 import { deleteAllScreenshots, screenshotStorage } from "./screenshot-service";
 
@@ -249,6 +249,14 @@ export function parseSnapshot(text: string): DatabaseSnapshot {
     throw new Error("不是 TFT 日志 导出的文件（缺少 app 标识）");
   }
   const snap = raw as Partial<DatabaseSnapshot>;
+  // A future snapshot shape must not be "best-effort imported" by an older
+  // build: it would silently keep or drop fields the newer app depends on.
+  if (
+    typeof snap.schemaVersion === "number" &&
+    snap.schemaVersion > SNAPSHOT_SCHEMA_VERSION
+  ) {
+    throw new Error("这个备份来自更新版本的应用，请先升级 TFT 弈记 后再导入");
+  }
   for (const key of ["matches", "decisions", "reviews", "trainingGoals"] as const) {
     if (!Array.isArray(snap[key])) {
       throw new Error(`文件缺少 ${key} 数组`);
@@ -263,8 +271,10 @@ export function parseSnapshot(text: string): DatabaseSnapshot {
 }
 
 /**
- * Merge semantics (upsert by id): importing a backup never destroys newer
- * local records — this keeps the tool safe to use with old exports.
+ * Merge semantics (upsert by id): records with a new id are appended; a
+ * same-id record is overwritten by the file WITHOUT comparing timestamps —
+ * replaying an old backup rolls that record back. Local-only records are
+ * kept. See DataPage's import copy for the user-facing wording.
  *
  * Session rules:
  *  - a match's `sessionId` is kept only when it names a session that exists
@@ -310,17 +320,17 @@ export async function importSnapshot(snapshot: DatabaseSnapshot): Promise<Import
     ...(await trainingSessionRepository.all()).map((s) => s.id),
   ]);
 
-  // Matches carrying canonical S18 ids are additionally gated: an id that the
-  // static snapshot does not know about is skipped, not silently imported.
-  //
-  // 名次是可选的（开局 / 进行中 / OCR 只认出一部分的记录都没有名次），但
-  // 一旦出现就必须是 1 – 8：一个 0 会被统计当成真实赛果。缺名次的记录照旧
-  // 导入 —— 丢掉它等于丢掉用户已经记下的开局信息。
+  // Matches carrying canonical S18 ids are additionally gated. Placement is
+  // optional for in-progress or partially recognised games, but a present
+  // value must be 1-8. A missing or malformed `playedAt` is skipped because
+  // it would crash every date-reading page.
   const validMatches = snapshot.matches.filter(
     (m) =>
       isRecord(m) &&
       hasId(m) &&
       (m.placement === undefined || isPlacement(m.placement)) &&
+      typeof m.playedAt === "string" &&
+      isValidWallClock(m.playedAt) &&
       validateMatchStaticData(m).length === 0,
   );
   const matches: Match[] = validMatches.map((m) => ({
@@ -433,6 +443,36 @@ export function downloadText(filename: string, text: string, mime = "text/plain"
   a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+/**
+ * Copy-to-clipboard for embedded contexts (sandboxed iframes) where a blob
+ * download can be silently blocked — the backup itself must keep an escape
+ * hatch. Returns false when the browser refuses every copy path; the caller
+ * shows the text instead.
+ */
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through to the selection-based path */
+  }
+  try {
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(area);
+    return ok;
+  } catch {
+    return false;
+  }
 }
 
 export function stampForFilename(): string {

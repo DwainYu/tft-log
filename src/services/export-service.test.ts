@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildSnapshot,
+  copyText,
   decisionsToCsv,
   importSnapshot,
   matchesToCsv,
@@ -356,5 +357,92 @@ describe("import + sessions", () => {
     const report = await importSnapshot(snap);
     expect(report.sessions).toBe(0);
     expect(report.skipped).toBe(1);
+  });
+});
+
+describe("import guards (release audit fixes)", () => {
+  it("skips matches whose playedAt is missing or not a valid wall clock", async () => {
+    const snap = await buildSnapshot();
+    snap.matches.push({ id: "no-time", placement: 3 } as never);
+    snap.matches.push({ id: "bad-time", placement: 3, playedAt: "not-a-date" } as never);
+    snap.matches.push({ id: "impossible-date", placement: 3, playedAt: "2026-13-45T99:99" } as never);
+
+    const report = await importSnapshot(snap);
+    expect(report.skipped).toBe(3);
+    const ids = (await matchRepository.all()).map((m: Match) => m.id);
+    expect(ids).not.toContain("no-time");
+    expect(ids).not.toContain("bad-time");
+    expect(ids).not.toContain("impossible-date");
+  });
+
+  it("skips placements outside 1..8 instead of poisoning stats", async () => {
+    const snap = await buildSnapshot();
+    for (const [id, placement] of [
+      ["zero", 0],
+      ["nine", 9],
+      ["fraction", 2.5],
+      ["string", "3"],
+    ] as const) {
+      snap.matches.push({ id, playedAt: "2026-02-05T13:00", placement } as never);
+    }
+    const report = await importSnapshot(snap);
+    expect(report.skipped).toBe(4);
+    expect((await matchRepository.all()).map((m: Match) => m.id)).not.toContain("zero");
+  });
+
+  it("rejects a snapshot from a newer schema version", () => {
+    const text = JSON.stringify({
+      app: "tft-training-log",
+      schemaVersion: SNAPSHOT_SCHEMA_VERSION + 1,
+      matches: [],
+      decisions: [],
+      reviews: [],
+      trainingGoals: [],
+    });
+    expect(() => parseSnapshot(text)).toThrow("更新版本");
+  });
+
+  it("still accepts snapshots with no schemaVersion at all", () => {
+    const text = JSON.stringify({
+      app: "tft-training-log",
+      matches: [],
+      decisions: [],
+      reviews: [],
+      trainingGoals: [],
+    });
+    expect(() => parseSnapshot(text)).not.toThrow();
+  });
+});
+
+describe("copyText", () => {
+  function withClipboard(clipboard: unknown) {
+    Object.defineProperty(navigator, "clipboard", { value: clipboard, configurable: true });
+  }
+
+  it("uses the async clipboard when it succeeds", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    withClipboard({ writeText });
+    await expect(copyText("hi")).resolves.toBe(true);
+    expect(writeText).toHaveBeenCalledWith("hi");
+  });
+
+  it("falls back to execCommand when the clipboard rejects", async () => {
+    withClipboard({ writeText: vi.fn().mockRejectedValue(new Error("denied")) });
+    // jsdom ships no document.execCommand — stub it the way older browsers behave
+    const exec = vi.fn().mockReturnValue(true);
+    Object.defineProperty(document, "execCommand", { value: exec, configurable: true });
+    await expect(copyText("hi")).resolves.toBe(true);
+    expect(exec).toHaveBeenCalledWith("copy");
+  });
+
+  it("returns false when both paths fail", async () => {
+    withClipboard(undefined);
+    Object.defineProperty(document, "execCommand", {
+      value: vi.fn(() => {
+        throw new Error("no copy here");
+      }),
+      configurable: true,
+    });
+    await expect(copyText("hi")).resolves.toBe(false);
   });
 });

@@ -11,10 +11,13 @@ import { PageHeader } from "../components/ui/Panel";
 import { Modal } from "../components/ui/Modal";
 import { EmptyState } from "../components/ui/Badge";
 import { Spinner } from "../components/ui/Spinner";
+import { useToast } from "../components/ui/Toast";
+import { errorMessage } from "../lib/errors";
 
 export function MatchFormPage({ mode }: { mode: "create" | "edit" }) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const { openQuickAdd } = useQuickAdd();
   // `undefined` = still reading, `null` = not found / create mode.
   const found = useLiveQuery(
@@ -86,8 +89,12 @@ export function MatchFormPage({ mode }: { mode: "create" | "edit" }) {
             <Button
               variant="danger"
               onClick={async () => {
-                await deleteMatch(found!.id);
-                navigate("/matches");
+                try {
+                  await deleteMatch(found!.id);
+                  navigate("/matches");
+                } catch (err) {
+                  toast.push(errorMessage(err), "warn");
+                }
               }}
             >
               确认删除

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Archive, CheckCircle2, Pencil, RotateCcw, Trash2, type LucideIcon } from "lucide-react";
 import { MISTAKE_TYPE_LIST, mistakeLabel, GOAL_STATUS_LABELS } from "../../domain/labels";
+import { dateKey, wallClockNow } from "../../lib/wallclock";
 import type { GoalStatus, TrainingGoal } from "../../domain/types";
 import type { TrainingGoalInput } from "../../domain/training/training-goal";
 
@@ -19,9 +20,7 @@ export function GoalForm({
 }) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [startDate, setStartDate] = useState(
-    initial?.startDate ?? new Date().toISOString().slice(0, 10),
-  );
+  const [startDate, setStartDate] = useState(initial?.startDate ?? dateKey(wallClockNow()));
   const [endDate, setEndDate] = useState(initial?.endDate ?? "");
   const [related, setRelated] = useState<string[]>(initial?.relatedMistakes ?? []);
   const [status, setStatus] = useState<GoalStatus>(initial?.status ?? "active");

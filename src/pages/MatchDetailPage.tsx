@@ -365,9 +365,13 @@ export function MatchDetailPage() {
             <Button
               variant="danger"
               onClick={async () => {
-                await deleteMatch(match.id);
-                toast.push("对局已删除");
-                navigate("/matches");
+                try {
+                  await deleteMatch(match.id);
+                  toast.push("对局已删除");
+                  navigate("/matches");
+                } catch (err) {
+                  toast.push(errorMessage(err), "warn");
+                }
               }}
             >
               确认删除
