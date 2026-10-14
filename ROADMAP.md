@@ -33,7 +33,7 @@ prerequisite for the tool being worth using today.
 ## Phase 1.5 — Release Engineering ✅
 
 - [x] CI: typecheck + 139 tests + production build on every push and pull request
-- [x] GitHub Pages deployment from `main` (`https://dwainyu.github.io/tft-training-log/`)
+- [x] GitHub Pages deployment from `main` (`https://dwainyu.github.io/tft-log/`)
 - [x] Vite `base` for the project-page sub-path, favicon and page description
 
 ## Phase 2 — S18 Static Data

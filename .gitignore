@@ -1,6 +1,7 @@
 # --- dependencies / build output ---
 node_modules/
 dist/
+dist-toy/
 dist-ssr/
 coverage/
 .vite/
@@ -42,3 +43,4 @@ Thumbs.db
 
 .codegraph/
 .pi/
+.qoder/

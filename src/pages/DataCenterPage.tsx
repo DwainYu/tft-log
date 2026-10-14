@@ -26,7 +26,7 @@ export function DataCenterPage() {
           <p className="flex items-start gap-2">
             <ExternalLink size={15} className="mt-0.5 shrink-0 text-gold-300" />
             <span>
-              这里收录的是外部网站的入口，全部在新窗口打开。TFT 弈记
+              这里收录的是外部网站的入口，全部在新窗口打开。TFT 日志（TFT Log）
               不抓取、不内嵌、也不为第三方内容背书。
             </span>
           </p>

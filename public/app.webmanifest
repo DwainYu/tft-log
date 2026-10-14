@@ -1,0 +1,16 @@
+{
+  "name": "TFT 日志",
+  "short_name": "TFT Log",
+  "description": "对局记录与训练分析：记录每一局，复盘每一步，持续提升。",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0c0e",
+  "theme_color": "#0b0c0e",
+  "icons": [
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "./logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

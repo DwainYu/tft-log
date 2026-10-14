@@ -156,8 +156,8 @@ function Brand() {
         className="size-8 shrink-0"
       />
       <div className="leading-tight">
-        <div className="text-sm font-semibold tracking-wide text-ink-50">TFT 弈记</div>
-        <div className="text-[10px] tracking-[0.16em] text-ink-600">TFT 对局记录与复盘</div>
+        <div className="text-sm font-semibold tracking-wide text-ink-50">TFT 日志</div>
+        <div className="text-[10px] tracking-[0.16em] text-ink-600">对局记录与训练分析</div>
       </div>
     </div>
   );

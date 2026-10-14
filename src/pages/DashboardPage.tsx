@@ -20,7 +20,6 @@ import { goalStatusLabel } from "../domain/training/training-goal";
 import { mistakeLabel } from "../domain/labels";
 import { UNCLASSIFIED } from "../domain/stats/stats";
 import { formatNumber } from "../lib/utils";
-import { AddMatchButton } from "../components/matches/AddMatchButton";
 import { MatchList } from "../components/matches/MatchList";
 import { formatRateValue, StatCard } from "../components/stats/StatCard";
 import { MIN_SAMPLES } from "../components/stats/chart-theme";
@@ -73,16 +72,14 @@ export function DashboardPage() {
     ? `${activeSession.name}${activeSession.endDate ? `（${activeSession.startDate} – ${activeSession.endDate}）` : " · 持续进行"}`
     : "日常训练";
 
+  // No record button up here on purpose: the sidebar already offers both ways
+  // in (快速记录一局 opens the dialog, 完整对局记录 opens the form) from every
+  // page, so a second copy here was pure duplication. The empty state below
+  // keeps its own call to action because that one is onboarding, not a shortcut.
   const header = (
     <PageHeader
       title="训练状态"
       subtitle={`${sessionSubtitle} · ${sessions.length > 0 ? "按当前训练统计" : "数据全部保存在本机"}`}
-      action={
-        <div className="flex items-center gap-2">
-          <AddMatchButton compact />
-          <LinkButton to="/matches/new">新增对局</LinkButton>
-        </div>
-      }
     />
   );
 
@@ -93,7 +90,7 @@ export function DashboardPage() {
         <Panel>
           <EmptyState
             title="这个训练下还没有记录对局"
-            description="打完一局点右上角「新增对局」，或从侧边栏一键快速记录。记录第一局后，这里会开始显示训练趋势。"
+            description="从左侧的「快速记录一局」20 秒记完一局，或用「完整对局记录」填写更多细节。记录第一局后，这里会开始显示训练趋势。"
             action={
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <LinkButton to="/matches/new" variant="primary">
