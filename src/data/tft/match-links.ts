@@ -1,6 +1,12 @@
 import type { Match } from "../../domain/types";
 import { getActiveSetData } from "./registry";
-import { augmentRepository, championRepository, itemRepository, traitRepository } from "./repositories";
+import {
+  augmentRepository,
+  championRepository,
+  encounterRepository,
+  itemRepository,
+  traitRepository,
+} from "./repositories";
 
 /**
  * Cross-checks a match's canonical ids against the active set's static data.
@@ -39,4 +45,19 @@ export function validateMatchStaticData(
   check(match.augmentIds, (id) => augmentRepository.getAugmentById(id), "强化符文");
 
   return errors;
+}
+
+/**
+ * Import path for the encounter id.
+ *
+ * `undefined` means "nobody recorded it" — which stays exactly what it meant
+ * on every match logged before this field existed. An id the catalog does not
+ * know is therefore dropped rather than guessing at a replacement.
+ */
+export function encounterIdOrUndefined(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  const id = value.trim();
+  const encounters = encounterRepository.getEncounters();
+  if (encounters.length === 0) return id;
+  return encounterRepository.getEncounterById(id) ? id : undefined;
 }

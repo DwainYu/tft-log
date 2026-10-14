@@ -19,6 +19,14 @@ export interface MatchQuery {
   to?: string;
   /** Limit to one training session; omit for all sessions. */
   sessionId?: string;
+  /**
+   * Limit to one opening encounter. Two reserved values keep the three-way
+   * meaning of `Match.encounterId` reachable from a filter:
+   *  - `"all"` → no filtering
+   *  - `"none"` → matches with no encounter recorded at all
+   *  - an encounter id → matches with that encounter (incl. the "no encounter" one)
+   */
+  encounterId?: "all" | "none" | string;
   sortField?: SortField;
   sortDir?: SortDir;
   limit?: number;
@@ -55,6 +63,12 @@ export function queryMatches<T extends MatchForQuery>(matches: readonly T[], q: 
       if (q.mistake === "none") {
         if (m.primaryMistake) return false;
       } else if (m.primaryMistake !== q.mistake) return false;
+    }
+
+    if (q.encounterId && q.encounterId !== "all") {
+      if (q.encounterId === "none") {
+        if (m.encounterId) return false;
+      } else if (m.encounterId !== q.encounterId) return false;
     }
 
     const at = toDate(m.playedAt);
@@ -111,6 +125,7 @@ export const EMPTY_MATCH_QUERY: MatchQuery = {
   reviewed: "all",
   composition: "all",
   mistake: "all",
+  encounterId: "all",
   from: "",
   to: "",
   sortField: "playedAt",
@@ -134,6 +149,7 @@ const QUERY_PARAM_KEYS = [
   "reviewed",
   "composition",
   "mistake",
+  "encounterId",
   "from",
   "to",
   "sortField",

@@ -36,6 +36,8 @@ export interface MatchInput {
   notes?: string;
   /** Structured 复盘 fact; see `OPENING_PLANS`. Absent = not marked. */
   openingPlan?: OpeningPlan;
+  /** Opening encounter id from the active set's catalog. Absent = not recorded. */
+  encounterId?: string;
 }
 
 /**
@@ -56,6 +58,8 @@ export interface MatchForQuery {
   primaryMistake?: MistakeType;
   notes?: string;
   sessionId?: string;
+  /** Opening encounter id — see `Match.encounterId`. */
+  encounterId?: string;
 }
 
 export function createMatch(input: MatchInput): Match {
@@ -107,6 +111,7 @@ function normalize(input: MatchInput): MatchInput {
     primaryMistake: input.primaryMistake || undefined,
     notes: input.notes?.trim() || undefined,
     openingPlan: input.openingPlan || undefined,
+    encounterId: input.encounterId?.trim() || undefined,
   }) as MatchInput;
 }
 

@@ -69,6 +69,12 @@ export async function updateMatch(id: string, payload: ManualMatchPayload): Prom
   if (!result.ok) throw new ValidationError(result.errors);
   assertStaticLinks(result.value);
   const next = applyMatchInput(existing, result.value);
+  // The two structured opening fields are closed vocabularies the form can
+  // also *empty*, and that has to mean "cleared" rather than "not mentioned":
+  // `applyMatchInput` merges, so an absent value would otherwise resurrect
+  // whatever the previous version of this record had.
+  if (payload.openingPlan === "") next.openingPlan = undefined;
+  if (payload.encounterId === "") next.encounterId = undefined;
   if (!next.sessionId) next.sessionId = existing.sessionId ?? (await getActiveSessionId());
   await matchRepository.put(next);
   return next;

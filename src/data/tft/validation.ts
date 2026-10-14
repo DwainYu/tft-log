@@ -55,6 +55,24 @@ export function validateDataset(data: TftDataSnapshot): string[] {
     if (typeof a.name !== "string" || !a.name.trim()) errors.push(`augment ${a.id}: empty name`);
   }
 
+  const seenEncounterIds = new Set<string>();
+  let noneCount = 0;
+  for (const e of data.encounters ?? []) {
+    if (typeof e.id !== "string" || !e.id.trim()) errors.push(`encounter: missing id`);
+    if (seenEncounterIds.has(e.id)) errors.push(`encounter: duplicate id "${e.id}"`);
+    seenEncounterIds.add(e.id);
+    if (typeof e.name !== "string" || !e.name.trim()) errors.push(`encounter ${e.id}: empty name`);
+    if (typeof e.description !== "string" || !e.description.trim()) {
+      errors.push(`encounter ${e.id}: empty description`);
+    }
+    if (e.set !== set) errors.push(`encounter ${e.id}: set ${e.set} != manifest set ${set}`);
+    if (typeof e.isNone !== "boolean") errors.push(`encounter ${e.id}: isNone must be a boolean`);
+    if (e.isNone) noneCount += 1;
+  }
+  // Exactly one "no encounter" outcome keeps "nothing happened" unambiguous —
+  // two of them would make the recorded value depend on which one was picked.
+  if (noneCount > 1) errors.push(`encounter: ${noneCount} entries are flagged isNone, expected at most 1`);
+
   // cross-references
   for (const c of champions) {
     for (const ref of c.traits ?? []) {
@@ -64,6 +82,13 @@ export function validateDataset(data: TftDataSnapshot): string[] {
   for (const i of data.items ?? []) {
     for (const ref of i.composition ?? []) {
       if (!itemIds.has(ref)) errors.push(`item ${i.id}: composition references unknown item "${ref}"`);
+    }
+  }
+  for (const e of data.encounters ?? []) {
+    for (const ref of e.championId ? [e.championId] : []) {
+      if (!seenChampionIds.has(ref)) {
+        errors.push(`encounter ${e.id}: championId "${ref}" is not in champions.json`);
+      }
     }
   }
 

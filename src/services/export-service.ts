@@ -19,7 +19,7 @@ import {
 } from "../domain/types";
 import { nowIso } from "../lib/utils";
 import { toDate } from "../lib/wallclock";
-import { validateMatchStaticData } from "../data/tft/match-links";
+import { validateMatchStaticData, encounterIdOrUndefined } from "../data/tft/match-links";
 
 /* ------------------------------------------------------------------ */
 /* Build                                                               */
@@ -64,6 +64,7 @@ const CSV_COLUMNS: { key: keyof Match & string; header: string }[] = [
   { key: "primaryMistake", header: "primary_mistake" },
   { key: "reviewed", header: "reviewed" },
   { key: "openingPlan", header: "opening_plan" },
+  { key: "encounterId", header: "encounter_id" },
   { key: "notes", header: "notes" },
   { key: "sessionId", header: "session_id" },
 ];
@@ -204,8 +205,12 @@ export async function importSnapshot(snapshot: DatabaseSnapshot): Promise<Import
         ? m.sessionId
         : DAILY_SESSION_ID,
     // A structured value the vocabulary does not know is dropped, not kept:
-    // it would otherwise land in a statistic nobody can reproduce.
+    // it would otherwise land in a statistic nobody can reproduce. Both stay
+    // `undefined` (= never recorded) rather than being coerced, which is what
+    // keeps old records byte-identical to new ones that simply never touched
+    // these fields.
     openingPlan: openingPlanOrUndefined(m.openingPlan),
+    encounterId: encounterIdOrUndefined(m.encounterId),
   }));
 
   const validMatchIds = new Set(matches.map((m) => m.id));

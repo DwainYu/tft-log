@@ -50,6 +50,14 @@ export interface MatchFormDraft {
   notes: string;
   /** Training session this match belongs to (defaults to the active one). */
   sessionId: string;
+  /** Structured opening route; `""` = not marked. See `OPENING_PLANS`. */
+  openingPlan: string;
+  /**
+   * Opening encounter id from the active set catalog.
+   * `""` = not recorded yet (distinct from the catalog's "no encounter" id,
+   * which means the game genuinely had none).
+   */
+  encounterId: string;
 }
 
 /**
@@ -138,6 +146,8 @@ export function emptyDraft(date = new Date(), sessionId = DAILY_SESSION_ID): Mat
     primaryMistake: "",
     notes: "",
     sessionId,
+    openingPlan: "",
+    encounterId: "",
   };
 }
 
@@ -166,6 +176,8 @@ export function draftFromMatch(
     primaryMistake: match.primaryMistake ?? "",
     notes: match.notes ?? "",
     sessionId: match.sessionId ?? fallbackSessionId,
+    openingPlan: match.openingPlan ?? "",
+    encounterId: match.encounterId ?? "",
   };
 }
 
@@ -211,6 +223,8 @@ export function draftToPayload(draft: MatchFormDraft): MatchFormPayload {
     primaryMistake: draft.primaryMistake,
     notes: draft.notes,
     sessionId: draft.sessionId || undefined,
+    openingPlan: draft.openingPlan,
+    encounterId: draft.encounterId,
   };
 }
 

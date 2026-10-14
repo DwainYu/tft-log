@@ -1,5 +1,5 @@
 import { getActiveSetData } from "./registry";
-import type { AugmentData, ChampionData, ItemData, TraitData } from "./types";
+import type { AugmentData, ChampionData, EncounterData, ItemData, TraitData } from "./types";
 
 /**
  * Read-only lookup API over the active set's static data. This is the layer
@@ -35,12 +35,29 @@ export interface AugmentRepository {
   searchAugments(query: string): AugmentData[];
 }
 
+/**
+ * Opening encounters for the active set.
+ *
+ * May legitimately be empty: a future set with no published encounter table
+ * simply has nothing to offer, and callers must fall back to "not recorded"
+ * rather than inventing options.
+ */
+export interface EncounterRepository {
+  getEncounters(): EncounterData[];
+  getEncounterById(id: string): EncounterData | undefined;
+  /** The single "nothing happened" outcome, when the catalog defines one. */
+  getNoneEncounter(): EncounterData | undefined;
+  searchEncounters(query: string): EncounterData[];
+}
+
 const data = getActiveSetData();
 
 const championById = new Map(data.champions.map((c) => [c.id, c]));
 const traitById = new Map(data.traits.map((t) => [t.id, t]));
 const itemById = new Map(data.items.map((i) => [i.id, i]));
 const augmentById = new Map(data.augments.map((a) => [a.id, a]));
+const encounterById = new Map((data.encounters ?? []).map((e) => [e.id, e]));
+const noneEncounter = (data.encounters ?? []).find((e) => e.isNone);
 
 const byCost = new Map<number, ChampionData[]>();
 for (const c of data.champions) byCost.set(c.cost, [...(byCost.get(c.cost) ?? []), c]);
@@ -84,4 +101,14 @@ export const augmentRepository: AugmentRepository = {
   getAugments: () => data.augments,
   getAugmentById: (id) => augmentById.get(id),
   searchAugments: (query) => data.augments.filter((a) => matchQuery(query, a.name, a.id)),
+};
+
+export const encounterRepository: EncounterRepository = {
+  getEncounters: () => data.encounters ?? [],
+  getEncounterById: (id) => encounterById.get(id),
+  getNoneEncounter: () => noneEncounter,
+  searchEncounters: (query) =>
+    (data.encounters ?? []).filter(
+      (e) => matchQuery(query, e.name, e.id) || e.englishName.toLowerCase().includes(query.trim().toLowerCase()),
+    ),
 };

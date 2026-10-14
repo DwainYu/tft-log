@@ -1,5 +1,7 @@
 import { validateMatchInput, type MatchInput } from "../../domain/match/match";
+import { openingPlanOrUndefined } from "../../domain/match/opening";
 import { MISTAKE_TYPE_LIST } from "../../domain/labels";
+import { encounterIdOrUndefined } from "../../data/tft/match-links";
 import { secondsBetween, toDate, wallClockNow } from "../../lib/wallclock";
 import { parseList } from "../../lib/utils";
 import type { AdapterResult, DataSourceAdapter } from "./types";
@@ -31,6 +33,10 @@ export interface ManualMatchPayload {
   sessionId?: string;
   primaryMistake?: string;
   notes?: string;
+  /** Structured 复盘 fact, see `OPENING_PLANS`. */
+  openingPlan?: string;
+  /** Opening encounter id from the active set's encounter catalog. */
+  encounterId?: string;
 }
 
 function toNumber(value: string | number | undefined): number | undefined {
@@ -61,6 +67,10 @@ export const ManualAdapter: DataSourceAdapter<ManualMatchPayload> = {
 
     const mistakeRaw = payload.primaryMistake?.trim().toUpperCase();
     const primaryMistake = MISTAKE_TYPE_LIST.find((t) => t === mistakeRaw);
+    // Both structured facts are validated by their own vocabulary before they
+    // reach `validateMatchInput`; an unknown value becomes "not recorded"
+    // rather than an error, because neither field is required to save a game.
+    const openingPlan = openingPlanOrUndefined(payload.openingPlan);
 
     const input: MatchInput = {
       playedAt,
@@ -82,6 +92,8 @@ export const ManualAdapter: DataSourceAdapter<ManualMatchPayload> = {
       sessionId: payload.sessionId?.trim() || undefined,
       primaryMistake,
       notes: payload.notes?.trim() || undefined,
+      openingPlan,
+      encounterId: encounterIdOrUndefined(payload.encounterId),
     };
 
     const errors = validateMatchInput(input);

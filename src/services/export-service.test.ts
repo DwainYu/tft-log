@@ -57,7 +57,9 @@ describe("export", () => {
     const { a } = await seedTwo();
     const csv = matchesToCsv(await matchRepository.all());
     const lines = csv.split("\n");
-    expect(lines[0]).toBe("id,played_at,placement,composition,final_level,final_health,duration_seconds,primary_mistake,reviewed,opening_plan,notes,session_id");
+    expect(lines[0]).toBe(
+      "id,played_at,placement,composition,final_level,final_health,duration_seconds,primary_mistake,reviewed,opening_plan,encounter_id,notes,session_id",
+    );
     const rowA = lines.find((l) => l.includes(a.id))!;
     // commas inside composition and quotes inside notes must be escaped
     expect(rowA).toContain(`"Arcader, gold-rush"`);

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, Save, Trash2, Zap } from "lucide-react";
 import { addMatch, updateMatch } from "../../services/match-service";
-import { mistakeLabel } from "../../domain/labels";
+import { OPENING_PLAN_LIST, mistakeLabel, openingPlanLabel } from "../../domain/labels";
 import { isTop4, isWin } from "../../domain/match/match";
 import { MAX_PLACEMENT } from "../../domain/types";
 import type { Match } from "../../domain/types";
@@ -15,6 +15,7 @@ import { Badge } from "../ui/Badge";
 import { useToast } from "../ui/Toast";
 import { AugmentSelector } from "./AugmentSelector";
 import { CompositionSelector } from "./CompositionSelector";
+import { EncounterSelector } from "./EncounterSelector";
 import { ItemSelector } from "./ItemSelector";
 import { TraitSelector } from "./TraitSelector";
 import { MistakeSelect } from "./MistakeSelect";
@@ -283,6 +284,47 @@ export function MatchForm({
                 legacy={draft.augmentsLegacy}
                 onLegacyChange={(values) => set("augmentsLegacy", values)}
               />
+            </Field>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field
+              label="开局事件（Opening Encounter）"
+              htmlFor="f-encounter"
+              hint="开局前由本局随机决定的全局条件；和「强化符文」里你自己选的那三个不是一回事"
+            >
+              <EncounterSelector
+                id="f-encounter"
+                value={draft.encounterId}
+                onChange={(v) => set("encounterId", v)}
+              />
+            </Field>
+            <Field
+              label="开局路线"
+              labelId="f-plan-label"
+              hint="本局的开局策略；复盘页会沿用这里的选择"
+            >
+              <div role="group" aria-labelledby="f-plan-label" className="flex flex-wrap gap-2">
+                {OPENING_PLAN_LIST.map((plan) => {
+                  const active = draft.openingPlan === plan;
+                  return (
+                    <button
+                      key={plan}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => set("openingPlan", active ? "" : plan)}
+                      className={[
+                        "rounded-lg border px-3 py-1.5 text-xs transition-colors",
+                        active
+                          ? "border-gold-500/45 bg-gold-500/10 text-gold-300"
+                          : "border-line text-ink-400 hover:bg-base-800 hover:text-ink-200",
+                      ].join(" ")}
+                    >
+                      {openingPlanLabel(plan)}
+                    </button>
+                  );
+                })}
+              </div>
             </Field>
           </div>
 

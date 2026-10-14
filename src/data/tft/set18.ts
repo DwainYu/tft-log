@@ -1,11 +1,13 @@
 import championsJson from "../../../data/tft/set18/champions.json";
 import augmentsJson from "../../../data/tft/set18/augments.json";
+import encountersJson from "../../../data/tft/set18/encounters.json";
 import itemsJson from "../../../data/tft/set18/items.json";
 import manifestJson from "../../../data/tft/set18/manifest.json";
 import traitsJson from "../../../data/tft/set18/traits.json";
 import type {
   AugmentData,
   ChampionData,
+  EncounterData,
   ItemData,
   TftDataManifest,
   TftDataSnapshot,
@@ -26,6 +28,7 @@ export const set18Data: TftDataSnapshot = {
   traits: traitsJson as TraitData[],
   items: itemsJson as ItemData[],
   augments: augmentsJson as AugmentData[],
+  encounters: (encountersJson as { encounters: EncounterData[] }).encounters,
 };
 
 const problems = validateDataset(set18Data);
