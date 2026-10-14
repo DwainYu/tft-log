@@ -11,7 +11,7 @@ import type { Review } from "../../domain/types";
  */
 const render = (props: Partial<Parameters<typeof ReviewForm>[0]> = {}) => {
   const onSave = vi.fn();
-  renderWithProviders(<ReviewForm onSave={onSave} {...props} />);
+  renderWithProviders(<ReviewForm matchId="m1" onSave={onSave} {...props} />);
   return { onSave };
 };
 

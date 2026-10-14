@@ -10,6 +10,7 @@ import type { Match } from "../domain/types";
  */
 
 const DB_NAME = "composition-usage-migration";
+const V4_DB_NAME = "review-draft-migration";
 
 const v2Match = (id: string, composition: string | undefined, playedAt: string): Match => ({
   id,
@@ -89,6 +90,60 @@ describe("Dexie v2 -> v3 migration", () => {
     try {
       expect(await upgraded.compositionUsage.count()).toBe(0);
       expect(await upgraded.matches.count()).toBe(0);
+    } finally {
+      await upgraded.delete();
+    }
+  });
+});
+
+/**
+ * v4 adds `reviewDrafts` for the 草稿箱. Nothing has to be backfilled —
+ * nobody had unfinished drafts before the feature existed — but every table
+ * that existed in v3 has to survive untouched, and the new table must accept
+ * one row per match.
+ */
+function openV3(): Dexie {
+  const old = new Dexie(V4_DB_NAME);
+  old.version(1).stores({
+    matches: "id, playedAt, placement, composition, reviewed, primaryMistake",
+    decisions: "id, matchId, type",
+    reviews: "id, &matchId, primaryMistake, updatedAt",
+    trainingGoals: "id, status, startDate",
+  });
+  old.version(2).stores({
+    trainingSessions: "id, type",
+    settings: "&id",
+  });
+  old.version(3).stores({
+    compositionUsage: "compositionKey, usageCount, lastUsedAt",
+  });
+  return old;
+}
+
+describe("Dexie v3 -> v4 migration", () => {
+  it("keeps every existing table and starts with an empty draft table", async () => {
+    await Dexie.delete(V4_DB_NAME);
+    const old = openV3();
+    await old.table("matches").bulkPut([
+      v2Match("m-1", "福牛", "2026-10-01T13:00"),
+      v2Match("m-2", "枪手", "2026-10-02T13:00"),
+    ]);
+    await old.table("reviews").put({
+      id: "r-1",
+      matchId: "m-1",
+      createdAt: "2026-10-01T13:00:00.000Z",
+      updatedAt: "2026-10-01T13:00:00.000Z",
+    });
+    await old.close();
+
+    const upgraded = new TftTrainingDatabase(V4_DB_NAME);
+    await upgraded.open();
+    try {
+      expect(await upgraded.matches.count()).toBe(2);
+      expect(await upgraded.reviews.count()).toBe(1);
+      expect(await upgraded.reviewDrafts.count()).toBe(0);
+      // one draft per match, enforced by the schema
+      expect(upgraded.reviewDrafts.schema.primKey.name).toBe("matchId");
     } finally {
       await upgraded.delete();
     }

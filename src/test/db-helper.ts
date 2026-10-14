@@ -10,6 +10,7 @@ export async function resetDatabase(): Promise<void> {
     db.trainingSessions.clear(),
     db.settings.clear(),
     db.compositionUsage.clear(),
+    db.reviewDrafts.clear(),
   ]);
 }
 

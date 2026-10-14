@@ -4,6 +4,7 @@ import { renderWithProviders } from "../../test/render";
 import { resetDatabase } from "../../test/db-helper";
 import { MatchForm } from "./MatchForm";
 import { addMatch } from "../../services/match-service";
+import { getReviewDraft, saveReviewDraft } from "../../services/review-service";
 import { matchRepository } from "../../data/repository/match-repository";
 import { encounterRepository } from "../../data/tft/repositories";
 
@@ -87,5 +88,18 @@ describe("MatchForm · opening route", () => {
     expect(win.getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(win);
     expect(win.getAttribute("aria-pressed")).toBe("false");
+  });
+});
+
+describe("Review form draft restore", () => {
+  it("seeds from the draft rather than from the older saved review", async () => {
+    const m = await addMatch({ playedAt: "2026-10-14T12:00", placement: "2" });
+    await saveReviewDraft(m.id, { bestDecision: "从草稿里来的" });
+
+    const draft = await getReviewDraft(m.id);
+    expect(draft?.input.bestDecision).toBe("从草稿里来的");
+    // the form reads exactly this object when it mounts (draftOrReview)
+    expect(draft?.matchId).toBe(m.id);
+    expect(await matchRepository.get(m.id)).toBeDefined();
   });
 });

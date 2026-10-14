@@ -5,6 +5,7 @@ import {
   CalendarRange,
   ClipboardList,
   Database,
+  FileClock,
   Globe,
   LayoutDashboard,
   Menu,
@@ -26,6 +27,7 @@ const NAV: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
   { to: "/data-center", label: "资料中心", icon: Globe },
   { to: "/goals", label: "训练目标", icon: Target },
   { to: "/weekly", label: "周复盘", icon: CalendarRange },
+  { to: "/drafts", label: "草稿箱", icon: FileClock },
   { to: "/data", label: "数据", icon: Database },
 ];
 

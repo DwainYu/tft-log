@@ -1,4 +1,5 @@
 import { matchRepository } from "../data/repository/match-repository";
+import { reviewDraftRepository } from "../data/repository/review-draft-repository";
 import { reviewRepository } from "../data/repository/review-repository";
 import { validateOpeningPlan } from "../domain/match/opening";
 import {
@@ -11,7 +12,7 @@ import {
 } from "../domain/review/review";
 import { ValidationError } from "../lib/errors";
 import { nowIso } from "../lib/utils";
-import type { OpeningPlan, Review } from "../domain/types";
+import type { OpeningPlan, Review, ReviewDraft } from "../domain/types";
 
 export async function getReview(matchId: string): Promise<Review | undefined> {
   return reviewRepository.byMatch(matchId);
@@ -96,10 +97,105 @@ async function writeReviewRecord(
 
 export async function deleteReview(matchId: string): Promise<void> {
   await reviewRepository.removeByMatch(matchId);
+  // Deleting the write-up deletes anything half-written for it too: leaving a
+  // draft behind would quietly bring the answers back into the drafts box.
+  await reviewDraftRepository.remove(matchId);
   const match = await matchRepository.get(matchId);
   if (match?.reviewed) {
     await matchRepository.put({ ...match, reviewed: false, updatedAt: nowIso() });
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Drafts — an unfinished 复盘, saved without asking                   */
+/* ------------------------------------------------------------------ */
+
+/** True when there is anything worth keeping: a blank form is not a draft. */
+export function hasDraftContent(input: ReviewInput, openingPlan?: OpeningPlan): boolean {
+  if (openingPlan) return true;
+  return Object.values(input).some((v) =>
+    typeof v === "number" ? true : typeof v === "string" && v.trim() !== "",
+  );
+}
+
+/** Upsert the draft for a match. Called on a debounce by the review form. */
+export async function saveReviewDraft(
+  matchId: string,
+  input: ReviewInput,
+  openingPlan?: OpeningPlan,
+): Promise<void> {
+  if (!hasDraftContent(input, openingPlan)) {
+    await reviewDraftRepository.remove(matchId);
+    return;
+  }
+  const match = await matchRepository.get(matchId);
+  const existing = await reviewDraftRepository.get(matchId);
+  const now = nowIso();
+  await reviewDraftRepository.put({
+    matchId,
+    input,
+    openingPlan,
+    sessionId: match?.sessionId ?? existing?.sessionId,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  });
+}
+
+export async function getReviewDraft(matchId: string): Promise<ReviewDraft | undefined> {
+  return reviewDraftRepository.get(matchId);
+}
+
+export async function deleteReviewDraft(matchId: string): Promise<void> {
+  await reviewDraftRepository.remove(matchId);
+}
+
+/**
+ * Drafts joined to their match, newest first.
+ *
+ * Matches that are already reviewed are filtered out even if a stale draft
+ * row survived: once a 复盘 is complete its draft is deleted, so anything
+ * left is a leftover, and showing it would blur the line between "finished"
+ * and "still open".
+ */
+export async function draftSummaries(): Promise<
+  {
+    draft: ReviewDraft;
+    matchId: string;
+    matchLabel: string;
+    playedAt: string;
+    sessionId?: string;
+    /** How many of the required conclusion fields are already answered. */
+    filled: number;
+    total: number;
+  }[]
+> {
+  const [drafts, matches] = await Promise.all([
+    reviewDraftRepository.all(),
+    matchRepository.all(),
+  ]);
+  const byId = new Map(matches.map((m) => [m.id, m]));
+
+  return drafts
+    .filter((d) => {
+      const m = byId.get(d.matchId);
+      return m !== undefined && !m.reviewed;
+    })
+    .map((draft) => {
+      const m = byId.get(draft.matchId)!;
+      const input = draft.input;
+      const required = [input.primaryMistake, input.biggestMistake, input.bestDecision, input.nextGameFocus];
+      return {
+        draft,
+        matchId: draft.matchId,
+        matchLabel: `${m.playedAt.slice(5, 10)} · 第 ${m.placement} 名 · ${m.composition ?? "未填阵容"}`,
+        playedAt: m.playedAt,
+        sessionId: m.sessionId,
+        filled: required.filter(Boolean).length,
+        total: required.length,
+      };
+    })
+    .sort((a, b) => a.playedAt.localeCompare(b.playedAt) || a.matchId.localeCompare(b.matchId))
+    .reverse();
 }
 
 /** Reviews joined to their match, newest first — Weekly Review + future agent tools. */

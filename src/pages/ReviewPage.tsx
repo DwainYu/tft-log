@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ChevronLeft, ListChecks } from "lucide-react";
-import { deleteReview, saveReview } from "../services/review-service";
+import { deleteReview, deleteReviewDraft, getReviewDraft, saveReview } from "../services/review-service";
 import { getMatchBundle } from "../services/match-service";
 import type { ReviewInput } from "../domain/review/review";
 import type { OpeningPlan } from "../domain/types";
-import { mistakeLabel } from "../domain/labels";
+import { mistakeLabel, openingPlanLabel } from "../domain/labels";
+import { encounterNameOrId } from "../components/matches/EncounterSelector";
 import {
   durationOf,
   isBottom4,
@@ -42,8 +43,13 @@ export function ReviewPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const bundle = useLiveQuery(() => getMatchBundle(id), [id]);
+  // Resolved *before* the form mounts: `ReviewForm` seeds its state from the
+  // draft on first render, so it must already know whether one exists. `null`
+  // means "loaded and there is none" — `undefined` would be indistinguishable
+  // from "still loading" and would pin the page on the spinner forever.
+  const draft = useLiveQuery(() => getReviewDraft(id).then((d) => d ?? null), [id]);
 
-  if (bundle === undefined) return <Spinner label="读取复盘" />;
+  if (bundle === undefined || draft === undefined) return <Spinner label="读取复盘" />;
   if (bundle === null) {
     return (
       <>
@@ -73,6 +79,9 @@ export function ReviewPage() {
     setErrors([]);
     try {
       await saveReview(match.id, input, openingPlan);
+      // The 复盘 is now the real record; its draft must not linger, or this
+      // match would show up in the drafts box next to the finished write-up.
+      await deleteReviewDraft(match.id);
       toast.push("复盘已保存 · 这局标记为已复盘");
       navigate(`/matches/${match.id}`);
     } catch (err) {
@@ -151,10 +160,13 @@ export function ReviewPage() {
           // Remount per match: the form seeds its state once, so without this
           // a direct jump to another game's review would keep the old answers.
           key={match.id}
+          matchId={match.id}
           initial={review}
           initialOpeningPlan={match.openingPlan}
           errors={errors}
           busy={busy}
+          draft={draft ?? undefined}
+          hasDraft={draft !== undefined}
           onSave={onSubmit}
           onDiscard={() => navigate(`/matches/${match.id}`)}
         />
@@ -169,6 +181,8 @@ export function ReviewPage() {
               <SideFact label="核心棋子" value={match.coreUnits?.join(" / ")} />
               <SideFact label="核心装备" value={match.coreItems?.join(" / ")} />
               <SideFact label="强化符文" value={match.augments?.join(" / ")} />
+              <SideFact label="开局事件" value={encounterNameOrId(match.encounterId)} />
+              <SideFact label="开局路线" value={openingPlanLabel(match.openingPlan)} />
             </dl>
           </Panel>
 
