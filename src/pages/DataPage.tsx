@@ -2,20 +2,21 @@ import { useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Database, Download, FileJson, Plus, Sparkles, Trash2, Upload } from "lucide-react";
 import {
-  buildSnapshot,
+  buildScopedExport,
   decisionsToCsv,
   downloadText,
+  EXPORT_SCOPE_LABELS,
+  EXPORT_SCOPES,
   importSnapshot,
   matchesToCsv,
   parseSnapshot,
   storageCounts,
   stampForFilename,
   wipeAll,
+  type ExportScope,
 } from "../services/export-service";
 import { getActiveSetData } from "../data/tft/registry";
 import { loadDemoData, removeDemoData } from "../services/demo-service";
-import { decisionRepository } from "../data/repository/decision-repository";
-import { matchRepository } from "../data/repository/match-repository";
 import {
   createSession,
   deleteSession,
@@ -65,6 +66,7 @@ export function DataPage() {
   const [editing, setEditing] = useState<TrainingSession | "new" | null>(null);
   const [draft, setDraft] = useState<SessionDraft>(emptyDraft);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [scope, setScope] = useState<ExportScope>("all");
 
   if (counts === undefined) return <Spinner label="读取存储" />;
   const total = counts.matches + counts.decisions + counts.reviews + counts.trainingGoals;
@@ -72,9 +74,23 @@ export function DataPage() {
   async function exportJson() {
     setBusy(true);
     try {
-      const snapshot = await buildSnapshot();
-      downloadText(`tft-training-log-${stampForFilename()}.json`, JSON.stringify(snapshot, null, 2), "application/json");
-      toast.push("JSON 已导出");
+      const { snapshot, summary } = await buildScopedExport(scope);
+      // The scope rides in the filename: a split file sitting next to a full
+      // backup should be impossible to confuse for the other one.
+      const suffix = scope === "all" ? "" : `-${scope}`;
+      downloadText(
+        `tft-log${suffix}-${stampForFilename()}.json`,
+        JSON.stringify(snapshot, null, 2),
+        "application/json",
+      );
+      toast.push(
+        scope === "all"
+          ? `已导出完整备份：${summary.matches} 对局 · ${summary.decisions} 决策 · ${summary.reviews} 复盘`
+          : `已导出${EXPORT_SCOPE_LABELS[scope]}：${summary.sessions} Session · ${summary.matches} 对局 · ${summary.decisions} 决策 · ${summary.reviews} 复盘` +
+              (summary.unclassifiedMatches
+                ? `（其中 ${summary.unclassifiedMatches} 局没有可识别的 Session，按导入规则归入日常，未被丢弃）`
+                : ""),
+      );
     } catch (err) {
       toast.push(errorMessage(err), "warn");
     } finally {
@@ -85,10 +101,15 @@ export function DataPage() {
   async function exportCsv() {
     setBusy(true);
     try {
-      const [matches, decisions] = await Promise.all([matchRepository.all(), decisionRepository.all()]);
-      downloadText(`tft-matches-${stampForFilename()}.csv`, matchesToCsv(matches), "text/csv");
-      if (decisions.length > 0) {
-        downloadText(`tft-decisions-${stampForFilename()}.csv`, decisionsToCsv(decisions), "text/csv");
+      const { snapshot } = await buildScopedExport(scope);
+      const suffix = scope === "all" ? "" : `-${scope}`;
+      downloadText(`tft-matches${suffix}-${stampForFilename()}.csv`, matchesToCsv(snapshot.matches), "text/csv");
+      if (snapshot.decisions.length > 0) {
+        downloadText(
+          `tft-decisions${suffix}-${stampForFilename()}.csv`,
+          decisionsToCsv(snapshot.decisions),
+          "text/csv",
+        );
       }
       toast.push("CSV 已导出");
     } catch (err) {
@@ -238,21 +259,44 @@ export function DataPage() {
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Panel>
-            <PanelHeader title="导出" subtitle="JSON = 全量备份 · CSV = 给表格软件看" />
+            <PanelHeader title="导出" subtitle="先选范围，再导出 JSON（备份）或 CSV（表格）" />
             <div className="flex flex-col gap-2 p-4">
+              <Field label="导出范围" htmlFor="ex-scope">
+                <Select
+                  id="ex-scope"
+                  value={scope}
+                  onChange={(e) => setScope(e.target.value as ExportScope)}
+                >
+                  {EXPORT_SCOPES.map((s) => (
+                    <option key={s} value={s}>
+                      {EXPORT_SCOPE_LABELS[s]}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+
+              <p className="text-[11px] leading-relaxed text-ink-600">
+                {scope === "all"
+                  ? "完整备份：所有 Session、对局、决策、复盘和训练目标，导入后可完整还原。"
+                  : scope === "competition"
+                    ? "只包含「云巅」类 Session，以及记在这些 Session 下的对局、决策和复盘。日常 Session 不会出现在这个文件里。"
+                    : "只包含「日常」类 Session，以及记在这些 Session 下的对局、决策和复盘。没有可识别 Session 的旧记录也会留在这里（导入时归入日常训练），不会丢。"}
+              </p>
+
               <Button variant="primary" onClick={exportJson} disabled={busy || total === 0}>
                 <FileJson size={15} />
-                Export JSON（全部数据）
+                Export JSON · {EXPORT_SCOPE_LABELS[scope]}
               </Button>
               <Button onClick={exportCsv} disabled={busy || counts.matches === 0}>
                 <Download size={15} />
-                Export CSV（对局{counts.decisions ? " + 决策" : ""}）
+                Export CSV · {EXPORT_SCOPE_LABELS[scope]}
               </Button>
               <p className="text-[11px] leading-relaxed text-ink-600">
                 JSON 包含 matches / decisions / reviews / trainingGoals / trainingSessions 五张表，
-                与本页导入格式一致，可以跨浏览器迁移或作为备份。CSV 对局表带
-                <code className="mx-1">session_id</code>
-                列（旧 CSV 不受影响）。
+                与本页导入格式一致，可以跨浏览器迁移或作为备份。训练目标是全局的，不按 Session
+                切分，所以三种范围里都会带上。
+                CSV 只能表达两张平表（对局、决策），复盘正文和 Session 明细都不在里面 —— 需要完整关系请用
+                JSON。
               </p>
             </div>
           </Panel>
