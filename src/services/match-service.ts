@@ -10,6 +10,7 @@ import {
 } from "../domain/match/match";
 import { normalizeCompositionKey } from "../domain/composition/composition";
 import { queryMatches, type MatchQuery } from "../domain/match/query";
+import { removeMatchScreenshots } from "./screenshot-service";
 import { seedReview } from "./review-service";
 import { recordCompositionUsage } from "./composition-usage-service";
 import { ValidationError } from "../lib/errors";
@@ -106,6 +107,9 @@ export async function deleteMatch(id: string): Promise<void> {
     matchRepository.remove(id),
     decisionRepository.removeByMatch(id),
     reviewRepository.removeByMatch(id),
+    // Screenshots go the same way decisions and reviews do: a deleted match
+    // must not leave images behind that no list can reach.
+    removeMatchScreenshots(id),
   ]);
 }
 

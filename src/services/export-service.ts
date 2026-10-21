@@ -21,6 +21,7 @@ import {
 import { nowIso } from "../lib/utils";
 import { toDate } from "../lib/wallclock";
 import { validateMatchStaticData, encounterIdOrUndefined } from "../data/tft/match-links";
+import { deleteAllScreenshots, screenshotStorage } from "./screenshot-service";
 
 /* ------------------------------------------------------------------ */
 /* Build                                                               */
@@ -373,14 +374,29 @@ export async function importSnapshot(snapshot: DatabaseSnapshot): Promise<Import
   };
 }
 
-export async function storageCounts(): Promise<{ matches: number; decisions: number; reviews: number; trainingGoals: number }> {
-  const [m, d, r, g] = await Promise.all([
+export async function storageCounts(): Promise<{
+  matches: number;
+  decisions: number;
+  reviews: number;
+  trainingGoals: number;
+  screenshots: number;
+  screenshotBytes: number;
+}> {
+  const [m, d, r, g, shots] = await Promise.all([
     matchRepository.all(),
     decisionRepository.all(),
     reviewRepository.all(),
     trainingGoalRepository.all(),
+    screenshotStorage(),
   ]);
-  return { matches: m.length, decisions: d.length, reviews: r.length, trainingGoals: g.length };
+  return {
+    matches: m.length,
+    decisions: d.length,
+    reviews: r.length,
+    trainingGoals: g.length,
+    screenshots: shots.count,
+    screenshotBytes: shots.bytes,
+  };
 }
 
 export async function wipeAll(): Promise<void> {
@@ -391,6 +407,9 @@ export async function wipeAll(): Promise<void> {
     trainingGoalRepository.clear(),
     // derived from matches — nothing left to derive from means nothing to keep
     compositionUsageRepository.clear(),
+    // Image bytes are the one thing IndexedDB keeps that a JSON backup does
+    // not carry, so leaving them here would be unrecoverable garbage.
+    deleteAllScreenshots(),
   ]);
 }
 

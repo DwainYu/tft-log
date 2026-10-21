@@ -15,6 +15,8 @@ import {
   wipeAll,
   type ExportScope,
 } from "../services/export-service";
+import { deleteAllScreenshots } from "../services/screenshot-service";
+import { formatBytes } from "../domain/screenshot/screenshot";
 import { getActiveSetData } from "../data/tft/registry";
 import { loadDemoData, removeDemoData } from "../services/demo-service";
 import {
@@ -249,7 +251,36 @@ export function DataPage() {
             <CountTile label="决策" value={counts.decisions} />
             <CountTile label="复盘" value={counts.reviews} />
             <CountTile label="训练目标" value={counts.trainingGoals} />
+            <CountTile label="结算截图" value={counts.screenshots} />
+            <CountTile label="截图占用" value={formatBytes(counts.screenshotBytes)} />
           </div>
+          {counts.screenshots > 0 && (
+            <div className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3">
+              <span className="text-[11px] leading-relaxed text-ink-600">
+                截图保存在本机 IndexedDB，<strong className="text-ink-200">不会</strong>
+                写进下面的 JSON / CSV 备份。换机器或清理浏览器数据前请先手动处理。
+              </span>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await deleteAllScreenshots();
+                    toast.push("本机截图已全部删除");
+                  } catch (err) {
+                    toast.push(errorMessage(err), "warn");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <Trash2 size={13} />
+                删除全部截图
+              </Button>
+            </div>
+          )}
           {total === 0 && (
             <p className="border-t border-line px-4 py-3 text-xs text-ink-600">
               还没有数据。可以先「载入示例数据」看看每个页面长什么样，或者记录一局之后再回来备份。
@@ -295,6 +326,7 @@ export function DataPage() {
                 JSON 包含 matches / decisions / reviews / trainingGoals / trainingSessions 五张表，
                 与本页导入格式一致，可以跨浏览器迁移或作为备份。训练目标是全局的，不按 Session
                 切分，所以三种范围里都会带上。
+                结算截图不在 JSON 里 —— 图片二进制不进备份文件，这也是旧备份格式能保持不变的原因。
                 CSV 只能表达两张平表（对局、决策），复盘正文和 Session 明细都不在里面 —— 需要完整关系请用
                 JSON。
               </p>
@@ -553,7 +585,7 @@ export function DataPage() {
   );
 }
 
-function CountTile({ label, value }: { label: string; value: number }) {
+function CountTile({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-lg border border-line bg-base-900/60 px-3 py-2.5">
       <div className="text-[11px] uppercase tracking-wide text-ink-600">{label}</div>

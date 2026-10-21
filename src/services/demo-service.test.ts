@@ -59,6 +59,9 @@ describe("loadDemoData / removeDemoData", () => {
       decisions: snap.decisions.length,
       reviews: snap.reviews.length,
       trainingGoals: snap.trainingGoals.length,
+      // demo data carries no images; screenshots have their own lifecycle
+      screenshots: 0,
+      screenshotBytes: 0,
     });
 
     await loadDemoData();

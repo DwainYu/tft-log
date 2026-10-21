@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { deleteMatch, getMatchBundle } from "../services/match-service";
+import { listScreenshots, listUnattachedScreenshots, setScreenshotMatch } from "../services/screenshot-service";
 import { getSessions } from "../services/session-service";
 import { DAILY_SESSION_ID } from "../domain/types";
 import type { Match } from "../domain/types";
@@ -22,6 +23,7 @@ import { formatDateWeekday, formatTime } from "../lib/wallclock";
 import { formatDuration } from "../lib/utils";
 import { DecisionPanel } from "../components/decisions/DecisionPanel";
 import { DecisionTimeline } from "../components/decisions/DecisionTimeline";
+import { ScreenshotGallery } from "../components/screenshots/ScreenshotGallery";
 import { buildTimeline } from "../domain/decision/timeline";
 import { Badge, EmptyState } from "../components/ui/Badge";
 import { Button, LinkButton } from "../components/ui/Button";
@@ -39,6 +41,8 @@ export function MatchDetailPage() {
   const bundle = useLiveQuery(() => getMatchBundle(id), [id]);
   const goals = useLiveQuery(() => currentGoals(), []);
   const sessions = useLiveQuery(getSessions, []);
+  const screenshotCount = useLiveQuery(() => listScreenshots(id).then((l) => l.length), [id]);
+  const unattached = useLiveQuery(listUnattachedScreenshots, []);
 
   if (bundle === undefined) return <Spinner label="读取对局" />;
   if (bundle === null) {
@@ -157,6 +161,48 @@ export function MatchDetailPage() {
                 </p>
               )}
             </div>
+          </Panel>
+
+          <Panel>
+            <PanelHeader
+              title="结算截图"
+              subtitle="保存在本机 IndexedDB，不进 JSON 备份"
+              action={<Badge tone="muted">{screenshotCount ?? 0} 张</Badge>}
+            />
+            <ScreenshotGallery
+              matchId={match.id}
+              upload
+              acceptPaste
+              emptyTitle="还没有保存结算截图"
+              emptyHint="把对局结算界面的图片存进来，以后可以查看和删除。支持 PNG / JPEG / WebP / GIF / BMP，单张不超过 10 MB。"
+              onDetach={async (id) => {
+                try {
+                  await setScreenshotMatch(id);
+                  toast.push("已转为未关联截图");
+                } catch (err) {
+                  toast.push(errorMessage(err), "warn");
+                }
+              }}
+            />
+            {(unattached?.length ?? 0) > 0 && (
+              <div className="border-t border-line">
+                <div className="px-4 pt-3 text-[11px] uppercase tracking-wide text-ink-600">
+                  待关联的截图 · {unattached?.length}
+                </div>
+                <ScreenshotGallery
+                  emptyTitle="没有待关联的截图"
+                  emptyHint="取消关联后的截图会回到这里。"
+                  onAttach={async (id) => {
+                    try {
+                      await setScreenshotMatch(id, match.id);
+                      toast.push("已关联到本局");
+                    } catch (err) {
+                      toast.push(errorMessage(err), "warn");
+                    }
+                  }}
+                />
+              </div>
+            )}
           </Panel>
 
           <DecisionPanel
@@ -279,7 +325,11 @@ export function MatchDetailPage() {
         open={confirm}
         onClose={() => setConfirm(false)}
         title="删除这局对局？"
-        subtitle="决策记录和复盘会一起删除，不可撤销"
+        subtitle={
+          screenshotCount
+            ? `决策记录、复盘和 ${screenshotCount} 张截图会一起删除，不可撤销`
+            : "决策记录和复盘会一起删除，不可撤销"
+        }
         footer={
           <>
             <Button

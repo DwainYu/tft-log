@@ -11,6 +11,7 @@ export async function resetDatabase(): Promise<void> {
     db.settings.clear(),
     db.compositionUsage.clear(),
     db.reviewDrafts.clear(),
+    db.screenshots.clear(),
   ]);
 }
 

@@ -5,6 +5,7 @@ import { MatchesPage } from "./MatchesPage";
 import { MatchDetailPage } from "./MatchDetailPage";
 import { addMatch, allMatches } from "../services/match-service";
 import { saveReview } from "../services/review-service";
+import { saveScreenshots, screenshotStorage } from "../services/screenshot-service";
 import { resetDatabase } from "../test/db-helper";
 import { renderWithProviders } from "../test/render";
 
@@ -213,5 +214,27 @@ describe("Match detail page", () => {
     fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
 
     await waitFor(async () => expect(await allMatches()).toHaveLength(1));
+  });
+
+  it("shows screenshots on the detail page and clears them with the match", async () => {
+    const m = await addMatch({ playedAt: "2026-02-03T18:00", placement: "5" });
+    // Full 8-byte PNG signature: the sniff needs all of it to recognise the file.
+    const png = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "shot.png",
+      { type: "image/png" },
+    );
+    await saveScreenshots(m.id, [{ name: png.name, type: png.type, size: png.size, blob: png }]);
+    renderApp(`/matches/${m.id}`);
+
+    expect(await screen.findByTitle(/shot\.png/)).toBeInTheDocument();
+
+    // The confirmation says how much would go with the match, because images
+    // cannot be recovered afterwards.
+    fireEvent.click(await screen.findByRole("button", { name: /删除/ }));
+    expect(screen.getByText(/1 张截图会一起删除/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
+
+    await waitFor(async () => expect(await screenshotStorage()).toEqual({ count: 0, bytes: 0 }));
   });
 });
