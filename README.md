@@ -6,10 +6,7 @@
 ![Pages](https://github.com/DwainYu/tft-log/actions/workflows/deploy-pages.yml/badge.svg)
 ![Release](https://img.shields.io/github/v/release/DwainYu/tft-log)
 
-**[Live Demo →](https://dwainyu.github.io/tft-log/)**
-
-> Mainland China users: if the demo loads slowly or not at all, see
-> [🇨🇳 中国大陆访问说明](#-中国大陆访问说明) below.
+**[Live Demo →](https://www.bilibili.com/toy/tft-log/index.html)**
 
 A local-first training journal for TFT (Teamfight Tactics): record matches,
 track in-game decisions, review mistakes, and measure improvement over time.
@@ -73,36 +70,15 @@ All four were taken against the bundled **fictional** demo dataset — see [Demo
 
 ## Live Demo
 
-**[dwainyu.github.io/tft-log](https://dwainyu.github.io/tft-log/)**
+两个入口是同一个纯前端应用，记录始终只存在你自己的浏览器里：
 
-The demo runs entirely in your browser and keeps every record in local IndexedDB — pushing
-`main` publishes the same static bundle through GitHub Actions. Load the
+| 入口 | 地址 | 说明 |
+| --- | --- | --- |
+| **哔哩哔哩 Toy**（中国大陆用户推荐） | https://www.bilibili.com/toy/tft-log/index.html | 官方 Toy 作品，大陆网络可直接访问 |
+| **GitHub Pages** | https://dwainyu.github.io/tft-log/ | 推送 `main` 后由 GitHub Actions 自动发布 |
+
+Both run entirely in your browser and keep every record in local IndexedDB. Load the
 [demo data](#demo-data) to see all screens filled; nothing is uploaded anywhere.
-
-### 🇨🇳 中国大陆访问说明
-
-本项目使用 GitHub Pages 提供在线 Demo：
-
-https://dwainyu.github.io/tft-log/
-
-由于网络环境差异，中国大陆部分用户访问 GitHub Pages 可能较慢，或无法正常加载。
-
-可以尝试使用 **Watt Toolkit（原 Steam++）** 的 GitHub 加速功能改善访问。
-
-Watt Toolkit 是一个开源的跨平台工具，官方项目提供 GitHub Releases、Gitee Releases 和官网等下载渠道，并包含网络加速功能。
-
-使用步骤：
-
-1. 安装 Watt Toolkit
-2. 打开 Watt Toolkit
-3. 找到 **网络加速**
-4. 开启 **GitHub** 相关加速
-5. 再打开上面的 TFT 日志 地址
-
-> Watt Toolkit 属于第三方工具，并非本项目的运行依赖。不同网络环境下的加速效果可能有所不同。
-
-官方项目：
-https://github.com/BeyondDimension/SteamTools
 
 ## Getting Started
 
@@ -174,9 +150,18 @@ Notes on how it behaves:
   because importing assigns exactly those records to the built-in daily session anyway.
   When that happens the toast tells you the count.
 - **Training goals are global** — they carry no Session — so all three scopes include them.
-- **CSV is a table, not a backup.** It can only express two flat tables (matches and
-  decisions). Review text, decision detail beyond those columns and Session details are
-  not represented. For anything you might want to restore, use JSON.
+- **CSV is a table, not a backup — and it is one-way.** It can only express two
+  flat tables (matches and decisions), and there is **no CSV import**: the only
+  restore path is JSON. Review text, decision detail beyond those columns and
+  Session details are not represented; a match that has not finished yet (no
+  placement recorded) exports with an empty `placement` cell, which a spreadsheet
+  will happily show as nothing — that is "not settled", not zero. For anything
+  you might want to restore, use JSON.
+- **Screenshots do not travel in backups.** JSON snapshots carry sessions,
+  matches, decisions, reviews and goals only — image bytes live solely in this
+  browser's IndexedDB and are the one thing a backup cannot recover. Manage or
+  clear them from *Data → 结算截图* before wiping storage or switching machine;
+  deleting a match deletes its screenshots with it.
 - **Importing always merges**, never replaces: records are upserted by id, so an older
   backup cannot destroy newer local data. A scoped file imports exactly like a full one;
   nothing is deleted because this file did not mention it.
