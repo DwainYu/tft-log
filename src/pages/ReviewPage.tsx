@@ -14,6 +14,7 @@ import {
   isTop4,
   isWin,
   placementTone,
+  placementText,
 } from "../domain/match/match";
 import { buildTimeline } from "../domain/decision/timeline";
 import { errorMessage, ValidationError } from "../lib/errors";
@@ -32,6 +33,8 @@ const PLACEMENT_TONE_CLASS = {
   gold: "text-gold-300",
   good: "text-good",
   bad: "text-bad",
+  // 还没结算的对局：不涂色，也不该看起来像打崩了。
+  muted: "text-ink-600",
 } as const;
 
 export function ReviewPage() {
@@ -122,8 +125,10 @@ export function ReviewPage() {
             <div
               className={`num text-4xl font-semibold leading-none ${PLACEMENT_TONE_CLASS[tone]}`}
             >
-              {match.placement}
-              <span className="ml-1 text-sm font-normal text-ink-400">名</span>
+              {match.placement ?? "—"}
+              <span className="ml-1 text-sm font-normal text-ink-400">
+                {match.placement === undefined ? "未记录名次" : "名"}
+              </span>
             </div>
             <div className="flex flex-col gap-1.5">
               <div className="flex flex-wrap items-center gap-1.5">
@@ -177,7 +182,7 @@ export function ReviewPage() {
             <dl className="flex flex-col gap-2 p-4">
               <SideFact label="阵容" value={match.composition} />
               <SideFact label="等级" value={match.finalLevel?.toString()} />
-              <SideFact label="血量" value={match.finalHealth?.toString()} />
+              <SideFact label="结束时剩余血量" value={match.finalHealth?.toString()} />
               <SideFact label="核心棋子" value={match.coreUnits?.join(" / ")} />
               <SideFact label="核心装备" value={match.coreItems?.join(" / ")} />
               <SideFact label="强化符文" value={match.augments?.join(" / ")} />
@@ -245,7 +250,7 @@ export function ReviewPage() {
         }
       >
         <p className="text-sm text-ink-200">
-          第 {match.placement} 名 · {match.playedAt.slice(0, 10)} ·{" "}
+          {placementText(match.placement)} · {match.playedAt.slice(0, 10)} ·{" "}
           {match.composition ?? "未填阵容"}
         </p>
       </Modal>

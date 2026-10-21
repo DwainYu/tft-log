@@ -66,6 +66,14 @@ describe("createMatch", () => {
     expect(next.composition).toBe("Fortune");
   });
 
+  it("stores no placement key at all when the game has no result yet", () => {
+    const { placement: _omitted, ...unfinished } = base;
+    const m = createMatch({ ...unfinished, composition: "Arcader" });
+    expect(m.placement).toBeUndefined();
+    // not 0 — 0 would enter 平均名次 / 前四率 as a real result
+    expect("placement" in m).toBe(false);
+  });
+
   it("keeps the structured opening plan when the match is edited again", () => {
     const m = { ...createMatch(base), openingPlan: "FORCE" as const };
     expect(applyMatchInput(m, { ...base, placement: 2 }).openingPlan).toBe("FORCE");
@@ -95,6 +103,41 @@ describe("validateMatchInput", () => {
     expect(validateMatchInput({ ...base, placement: 3.5 }).length).toBeGreaterThan(0);
   });
 
+  it("names the placement error so the form can point at the field", () => {
+    expect(validateMatchInput({ ...base, placement: 0 })).toContain(
+      `名次必须是 1 – ${MAX_PLACEMENT} 的整数`,
+    );
+    expect(validateMatchInput({ ...base, placement: MAX_PLACEMENT + 1 })).toContain(
+      `名次必须是 1 – ${MAX_PLACEMENT} 的整数`,
+    );
+    // a non-integer is "filled in but wrong" too, never "unknown"
+    expect(validateMatchInput({ ...base, placement: 3.5 })).toContain(
+      `名次必须是 1 – ${MAX_PLACEMENT} 的整数`,
+    );
+  });
+
+  it("accepts a record with no placement: the game has no result yet", () => {
+    // absent placement = 开局 / 进行中. 0 is not a stand-in for it.
+    const { placement: _omitted, ...unfinished } = base;
+    expect(validateMatchInput(unfinished)).toEqual([]);
+    expect(validateMatchInput({ playedAt: base.playedAt })).toEqual([]);
+  });
+
+  it("still rejects 0 and 9 — neither means 'unknown'", () => {
+    expect(validateMatchInput({ ...base, placement: 0 })).toContain(
+      `名次必须是 1 – ${MAX_PLACEMENT} 的整数`,
+    );
+    expect(validateMatchInput({ ...base, placement: 9 })).toContain(
+      `名次必须是 1 – ${MAX_PLACEMENT} 的整数`,
+    );
+    expect(validateMatchInput({ ...base, placement: 2.5 })).toContain(
+      `名次必须是 1 – ${MAX_PLACEMENT} 的整数`,
+    );
+    // but leaving it out is always valid
+    const { placement: _omitted, ...unfinished } = base;
+    expect(validateMatchInput(unfinished)).toEqual([]);
+  });
+
   it("rejects an unparsable playedAt", () => {
     expect(validateMatchInput({ ...base, playedAt: "昨天下午" }).length).toBeGreaterThan(0);
   });
@@ -110,7 +153,16 @@ describe("validateMatchInput", () => {
 
   it("rejects out-of-range level / health", () => {
     expect(validateMatchInput({ ...base, finalLevel: 30 })).toContain("最终等级应在 1 – 12 之间");
-    expect(validateMatchInput({ ...base, finalHealth: 120 })).toContain("最终血量应在 0 – 100 之间");
+    expect(validateMatchInput({ ...base, finalHealth: 120 })).toContain(
+      "结束时剩余血量应为 0 – 100 的数字",
+    );
+    // a negative or non-finite health is the same mistake, said once
+    expect(validateMatchInput({ ...base, finalHealth: -1 })).toContain(
+      "结束时剩余血量应为 0 – 100 的数字",
+    );
+    expect(validateMatchInput({ ...base, finalHealth: Number.NaN })).toContain(
+      "结束时剩余血量应为 0 – 100 的数字",
+    );
   });
 });
 

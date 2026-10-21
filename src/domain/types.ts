@@ -81,10 +81,19 @@ export interface Match {
   endedAt?: string;
   durationSeconds?: number;
 
-  /** 1 – 8 */
-  placement: number;
+  /**
+   * 最终名次 1 – 8。**可选**：开局或进行中开记录时它还不存在。
+   *
+   * 三态语义（与 `encounterId` 同样的写法）：
+   *  - absent → 还没结果（开局记录、进行中、以及所有早期记录之外的未完成局）；
+   *  - 1–8   → 该局已结算，可参与平均名次 / 前四率 / 吃鸡率 / 名次趋势；
+   *  - 0 从来不是合法值，也永远不会被当成「未填」。
+   */
+  placement?: number;
 
+  /** 结束时的等级，1 – 12。 */
   finalLevel?: number;
+  /** 结束（或被淘汰）时剩余的玩家生命值；不是开局血量，也不是过程中某一时刻的血量。 */
   finalHealth?: number;
   totalGold?: number;
 

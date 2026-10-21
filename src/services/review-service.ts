@@ -10,6 +10,7 @@ import {
   validateReviewInput,
   type ReviewInput,
 } from "../domain/review/review";
+import { placementText } from "../domain/match/match";
 import { ValidationError } from "../lib/errors";
 import { nowIso } from "../lib/utils";
 import type { OpeningPlan, Review, ReviewDraft } from "../domain/types";
@@ -187,7 +188,7 @@ export async function draftSummaries(): Promise<
       return {
         draft,
         matchId: draft.matchId,
-        matchLabel: `${m.playedAt.slice(5, 10)} · 第 ${m.placement} 名 · ${m.composition ?? "未填阵容"}`,
+        matchLabel: `${m.playedAt.slice(5, 10)} · ${placementText(m.placement)} · ${m.composition ?? "未填阵容"}`,
         playedAt: m.playedAt,
         sessionId: m.sessionId,
         filled: required.filter(Boolean).length,
@@ -217,7 +218,7 @@ export async function recentReviews(limit: number): Promise<
       return {
         review,
         matchId: m.id,
-        matchLabel: `${m.playedAt.slice(5, 10)} · 第 ${m.placement} 名 · ${m.composition ?? "未填阵容"}`,
+        matchLabel: `${m.playedAt.slice(5, 10)} · ${placementText(m.placement)} · ${m.composition ?? "未填阵容"}`,
       };
     });
 }

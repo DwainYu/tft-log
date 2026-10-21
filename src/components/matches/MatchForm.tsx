@@ -3,10 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { ChevronLeft, Save, Trash2, Zap } from "lucide-react";
 import { addMatch, updateMatch } from "../../services/match-service";
 import { OPENING_PLAN_LIST, mistakeLabel, openingPlanLabel } from "../../domain/labels";
-import { isTop4, isWin } from "../../domain/match/match";
+import { isTop4, isWin, placementText } from "../../domain/match/match";
 import { MAX_PLACEMENT } from "../../domain/types";
 import type { Match } from "../../domain/types";
-import { errorMessage } from "../../lib/errors";
+import { errorMessage, ValidationError } from "../../lib/errors";
 import { formatDuration } from "../../lib/utils";
 import { Button } from "../ui/Button";
 import { Field, Input, Select } from "../ui/Field";
@@ -33,6 +33,39 @@ import {
 /** Set 18 champion names, for the 核心棋子 autocomplete (static snapshot). */
 const S18_CHAMPION_NAMES: string[] = [...new Set(championRepository.getChampions().map((c) => c.name))];
 
+/**
+ * 记录场景：一局是一条可以持续完善的记录，这四个场景只决定表单先展开哪些
+ * 格子、以及哪些必须填 —— 落库的差别只有「有没有名次」（见 `Match.placement`）。
+ *
+ * - `opening`  开局：先记开局事件 / 计划，名次和结束血量都还没有
+ * - `ongoing`  对局中：补符文、阵容、随手记，名次仍可选
+ * - `result`   赛后结算：刚打完，补名次和结束血量
+ * - `backfill` 赛后补录：这局早就打完了，一次性把已知信息填完
+ */
+type RecordMode = "opening" | "ongoing" | "result" | "backfill";
+
+const RECORD_MODES: { key: RecordMode; label: string; hint: string }[] = [
+  { key: "opening", label: "开局记录", hint: "刚进游戏：只记开局事件和计划，名次不填" },
+  { key: "ongoing", label: "对局中记录", hint: "打的过程中补记；名次和结束血量可以先空着" },
+  { key: "result", label: "赛后结算", hint: "刚打完：填名次、结束时的剩余血量，再补复盘" },
+  { key: "backfill", label: "赛后补录", hint: "这局早已结束：把已知的开局和赛果一次填完" },
+];
+
+/** 新建时按钮上写的是什么，取决于这局记到哪一步。 */
+const CREATE_LABEL: Record<RecordMode, string> = {
+  opening: "保存开局",
+  ongoing: "保存进度",
+  result: "保存对局",
+  backfill: "保存补录",
+};
+
+/** 已有记录重新打开时，用「有没有名次 / 有没有开局信息」猜一个最合适的场景。 */
+function initialMode(match?: Match): RecordMode {
+  if (!match) return "result";
+  if (match.placement !== undefined) return "result";
+  return match.encounterId || match.openingPlan || match.composition ? "ongoing" : "opening";
+}
+
 export function MatchForm({
   mode,
   match,
@@ -48,6 +81,8 @@ export function MatchForm({
   );
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  // 「这局现在记到哪一步」—— 同一个记录可以在不同阶段反复打开继续补。
+  const [recordMode, setRecordMode] = useState<RecordMode>(() => initialMode(match));
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -57,13 +92,17 @@ export function MatchForm({
   const payload = useMemo(() => draftToPayload(draft), [draft]);
   const durationMinutes = effectiveDurationMinutes(draft);
 
+  // 结算类场景才有名次可填；开局和对局中留空 = 还没结果，不是 0。
+  const placementRequired = recordMode === "result" || recordMode === "backfill";
+  const showResultFacts = recordMode === "ongoing" || placementRequired;
+
   async function submit() {
     setBusy(true);
     setErrors([]);
     try {
       if (mode === "create") {
         const created = await addMatch(payload);
-        toast.push(`已记录第 ${created.placement} 名`);
+        toast.push(placementText(created.placement) + " 已记录");
         navigate(`/matches/${created.id}`);
       } else if (match) {
         await updateMatch(match.id, payload);
@@ -71,7 +110,7 @@ export function MatchForm({
         navigate(`/matches/${match.id}`);
       }
     } catch (err) {
-      setErrors([errorMessage(err)]);
+      setErrors(err instanceof ValidationError ? err.errors : [errorMessage(err)]);
       setBusy(false);
     }
   }
@@ -84,18 +123,68 @@ export function MatchForm({
         </div>
       )}
 
+      {/* 先选场景：开局时刻不该被名次、结束血量这些「打完才知道」的格子堵住。 */}
+      <Panel>
+        <PanelHeader title="0 · 这局记到哪一步" subtitle="同一条记录可以随时再打开继续补" />
+        <div className="flex flex-col gap-3 p-4">
+          <div role="group" aria-label="记录场景" className="flex flex-wrap gap-2">
+            {RECORD_MODES.map((m) => {
+              const active = recordMode === m.key;
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setRecordMode(m.key)}
+                  className={[
+                    "rounded-lg border px-3 py-1.5 text-xs transition-colors",
+                    active
+                      ? "border-gold-500/45 bg-gold-500/10 text-gold-300"
+                      : "border-line text-ink-400 hover:bg-base-800 hover:text-ink-200",
+                  ].join(" ")}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] leading-relaxed text-ink-600">
+            {RECORD_MODES.find((m) => m.key === recordMode)?.hint}
+          </p>
+        </div>
+      </Panel>
+
       <Panel>
         <PanelHeader title="A · 基础信息" subtitle="日期必填，开始/结束时间选填" />
         <div className="flex flex-col gap-4 p-4">
-          <Field label="最终名次" required>
-            <PlacementPicker
-              value={draft.placement}
-              onChange={(p) => set("placement", p === draft.placement ? undefined : p)}
-            />
-          </Field>
+          {showResultFacts && (
+            <Field
+              label="最终名次"
+              required={placementRequired}
+              hint={
+                placementRequired
+                  ? "快捷键 1 – 8"
+                  : "还没打完就留空 —— 留空表示「未记录」，不会当成第 0 名"
+              }
+            >
+              <PlacementPicker
+                value={draft.placement}
+                onChange={(p) => set("placement", p === draft.placement ? undefined : p)}
+              />
+            </Field>
+          )}
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label="日期" htmlFor="f-date" required>
+            <Field
+              label="日期"
+              htmlFor="f-date"
+              required
+              hint={
+                recordMode === "backfill"
+                  ? "补录旧局时改成那局真正的日期"
+                  : undefined
+              }
+            >
               <Input
                 id="f-date"
                 type="date"
@@ -111,7 +200,11 @@ export function MatchForm({
                 onChange={(e) => set("startTime", e.target.value)}
               />
             </Field>
-            <Field label="结束时间" htmlFor="f-end">
+            <Field
+              label="结束时间"
+              htmlFor="f-end"
+              hint={recordMode === "opening" ? "还没结束，留空" : undefined}
+            >
               <Input
                 id="f-end"
                 type="time"
@@ -170,7 +263,10 @@ export function MatchForm({
       </Panel>
 
       <Panel>
-        <PanelHeader title="B · 对局状态" />
+        <PanelHeader
+          title="B · 对局状态"
+          subtitle={recordMode === "ongoing" ? "打完才知道，现在可以全留空" : undefined}
+        />
         <div className="flex flex-col gap-4 p-4">
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="最终等级" htmlFor="f-level">
@@ -185,7 +281,16 @@ export function MatchForm({
                 onChange={(e) => set("finalLevel", e.target.value)}
               />
             </Field>
-            <Field label="最终血量" htmlFor="f-health">
+            <Field
+              label="结束时剩余血量"
+              htmlFor="f-health"
+              hint={
+                <span className="leading-relaxed">
+                  这局结束（或被淘汰）时你剩余的玩家生命值，0 – 100；
+                  不是开局血量，也不是过程中某一时刻的血量。不知道就留空。
+                </span>
+              }
+            >
               <Input
                 id="f-health"
                 type="number"
@@ -221,6 +326,7 @@ export function MatchForm({
             <Badge tone={draft.placement && draft.placement > MAX_PLACEMENT / 2 ? "bad" : "muted"}>
               Bottom4
             </Badge>
+            {draft.placement === undefined && <span>· 还没填名次，这一局不会计入赛果统计</span>}
           </div>
         </div>
       </Panel>
@@ -354,9 +460,13 @@ export function MatchForm({
       </Panel>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="primary" onClick={submit} disabled={busy || !draft.placement}>
+        <Button
+          variant="primary"
+          onClick={submit}
+          disabled={busy || (placementRequired && !draft.placement)}
+        >
           <Save size={15} />
-          {mode === "create" ? "保存对局" : "保存修改"}
+          {mode === "create" ? CREATE_LABEL[recordMode] : "保存修改"}
         </Button>
         <Button onClick={() => navigate(-1)}>
           <ChevronLeft size={15} />
@@ -370,7 +480,10 @@ export function MatchForm({
         )}
         {!draft.placement && (
           <span className="flex items-center gap-1 text-[11px] text-ink-600">
-            <Zap size={12} /> 想更快？侧边栏的「快速记录一局」只要 20 秒
+            <Zap size={12} />{" "}
+            {placementRequired
+              ? "想更快？侧边栏的「快速记录一局」只要 20 秒"
+              : "名次等打完再回来补，这条记录会一直在这儿"}
           </span>
         )}
       </div>

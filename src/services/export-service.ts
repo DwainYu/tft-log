@@ -2,6 +2,7 @@ import { compositionUsageRepository } from "../data/repository/composition-usage
 import { decisionRepository } from "../data/repository/decision-repository";
 import { matchRepository } from "../data/repository/match-repository";
 import { openingPlanOrUndefined } from "../domain/match/opening";
+import { isPlacement } from "../domain/match/match";
 import { rebuildCompositionUsage } from "./composition-usage-service";
 import { reviewRepository } from "../data/repository/review-repository";
 import { trainingGoalRepository } from "../data/repository/training-goal-repository";
@@ -311,9 +312,16 @@ export async function importSnapshot(snapshot: DatabaseSnapshot): Promise<Import
 
   // Matches carrying canonical S18 ids are additionally gated: an id that the
   // static snapshot does not know about is skipped, not silently imported.
+  //
+  // 名次是可选的（开局 / 进行中 / OCR 只认出一部分的记录都没有名次），但
+  // 一旦出现就必须是 1 – 8：一个 0 会被统计当成真实赛果。缺名次的记录照旧
+  // 导入 —— 丢掉它等于丢掉用户已经记下的开局信息。
   const validMatches = snapshot.matches.filter(
     (m) =>
-      isRecord(m) && hasId(m) && typeof m.placement === "number" && validateMatchStaticData(m).length === 0,
+      isRecord(m) &&
+      hasId(m) &&
+      (m.placement === undefined || isPlacement(m.placement)) &&
+      validateMatchStaticData(m).length === 0,
   );
   const matches: Match[] = validMatches.map((m) => ({
     ...m,

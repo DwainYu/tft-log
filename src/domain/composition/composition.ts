@@ -1,5 +1,6 @@
 import { toDate } from "../../lib/wallclock";
 import { nowIso } from "../../lib/utils";
+import { isPlacement } from "../match/match";
 import type { CompositionUsage } from "../types";
 
 /**
@@ -26,6 +27,8 @@ export function normalizeCompositionKey(value: string | null | undefined): strin
 export interface CompositionUsageSource {
   composition?: string;
   playedAt: string;
+  /** 可选：使用统计只认已结算（有名次）的局，见 `hasResult`。 */
+  placement?: number;
 }
 
 /**
@@ -45,6 +48,9 @@ export function summarizeCompositionUsage(
   const lastAt = new Map<string, string>();
 
   for (const m of matches) {
+    // 使用统计 = 「用这套阵容打完了几局」。开局 / 进行中的记录里 composition
+    // 是打算玩什么，不是最终阵容，混进来会污染 Recent / Frequent。
+    if (m.placement === undefined || !isPlacement(m.placement)) continue;
     const key = normalizeCompositionKey(m.composition);
     if (!key) continue;
     const at = toDate(m.playedAt)?.toISOString() ?? fallbackIso;

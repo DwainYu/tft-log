@@ -15,7 +15,11 @@ export interface MatchInput {
   startedAt?: string;
   endedAt?: string;
   durationSeconds?: number;
-  placement: number;
+  /**
+   * 1 – 8。可选：开局就开一条记录时名次还没有产生，此时必须留空。
+   * 空 = 未记录（不是 0）—— 没有名次的对局不参与任何赛果统计。
+   */
+  placement?: number;
   finalLevel?: number;
   finalHealth?: number;
   totalGold?: number;
@@ -47,7 +51,8 @@ export interface MatchInput {
 export interface MatchForQuery {
   id: string;
   playedAt: string;
-  placement: number;
+  /** 可选：赛果未产生（开局 / 进行中）时 absent。 */
+  placement?: number;
   reviewed: boolean;
   durationSeconds?: number;
   composition?: string;
@@ -93,7 +98,7 @@ function normalize(input: MatchInput): MatchInput {
     startedAt,
     endedAt,
     durationSeconds,
-    placement: input.placement,
+    placement: placementOrUndefined(input.placement),
     finalLevel: positiveOrUndefined(input.finalLevel),
     finalHealth: nonNegativeOrUndefined(input.finalHealth),
     totalGold: nonNegativeOrUndefined(input.totalGold),
@@ -120,14 +125,21 @@ export function validateMatchInput(input: Partial<MatchInput>): string[] {
   if (!input.playedAt || !isValidWallClock(input.playedAt)) {
     errors.push("对局时间格式不正确");
   }
-  if (!isPlacement(input.placement)) {
+  // 名次可选：开局就开记录时它还不存在，留空比填 0 正确 —— 0 会被当成
+  // 一条真实赛果进入平均名次。只有「填了但填错」才算错误。
+  if (input.placement !== undefined && !isPlacement(input.placement)) {
     errors.push(`名次必须是 1 – ${MAX_PLACEMENT} 的整数`);
   }
   if (input.finalLevel !== undefined && (input.finalLevel < 1 || input.finalLevel > 12)) {
     errors.push("最终等级应在 1 – 12 之间");
   }
-  if (input.finalHealth !== undefined && (input.finalHealth < 0 || input.finalHealth > 100)) {
-    errors.push("最终血量应在 0 – 100 之间");
+  // 结束时剩余血量：0 – 100，且不允许负数 / 非数字。留空永远是合法的
+  // 「不知道」，只有填错才是错误。
+  if (
+    input.finalHealth !== undefined &&
+    (!Number.isFinite(input.finalHealth) || input.finalHealth < 0 || input.finalHealth > 100)
+  ) {
+    errors.push("结束时剩余血量应为 0 – 100 的数字");
   }
   if (
     input.durationSeconds !== undefined &&
@@ -148,11 +160,17 @@ export function isPlacement(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= MAX_PLACEMENT;
 }
 
-export const isWin = (m: Pick<Match, "placement">): boolean => m.placement === 1;
-export const isTop4 = (m: Pick<Match, "placement">): boolean =>
-  m.placement >= 1 && m.placement <= TOP4_PLACEMENT;
-export const isBottom4 = (m: Pick<Match, "placement">): boolean =>
-  m.placement > TOP4_PLACEMENT && m.placement <= MAX_PLACEMENT;
+/**
+ * 赛果已产生 = 有名次。没有名次的记录是「开局 / 进行中」，不能当成真实赛果
+ * 参与平均名次、前四率、吃鸡率或名次趋势。
+ */
+export const hasResult = (m: { placement?: number }): boolean => isPlacement(m.placement);
+
+export const isWin = (m: { placement?: number }): boolean => m.placement === 1;
+export const isTop4 = (m: { placement?: number }): boolean =>
+  m.placement !== undefined && m.placement >= 1 && m.placement <= TOP4_PLACEMENT;
+export const isBottom4 = (m: { placement?: number }): boolean =>
+  m.placement !== undefined && m.placement > TOP4_PLACEMENT && m.placement <= MAX_PLACEMENT;
 
 export function durationOf(m: Match): number | undefined {
   if (m.durationSeconds !== undefined) return m.durationSeconds;
@@ -174,16 +192,23 @@ export function defaultPlayedAt(date = new Date()): string {
   return toWallClock(date);
 }
 
-/** UI helper: how to colour a placement. */
-export function placementTone(placement: number): "gold" | "good" | "bad" {
+/** UI helper: how to colour a placement. `undefined` = 还没结果，不涂色。 */
+export function placementTone(placement?: number): "gold" | "good" | "bad" | "muted" {
+  if (placement === undefined) return "muted";
   if (placement === 1) return "gold";
   if (isTop4({ placement })) return "good";
   return "bad";
 }
 
-export function avgPlacement(values: number[]): number | null {
-  if (values.length === 0) return null;
-  return round(values.reduce((a, b) => a + b, 0) / values.length, 2);
+/** UI helper: 有名次写「第 N 名」，没有写「未记录名次」—— 绝不渲染 undefined。 */
+export function placementText(placement?: number): string {
+  return placement === undefined ? "未记录名次" : `第 ${placement} 名`;
+}
+
+export function avgPlacement(values: (number | undefined)[]): number | null {
+  const counted = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  if (counted.length === 0) return null;
+  return round(counted.reduce((a, b) => a + b, 0) / counted.length, 2);
 }
 
 function listOrUndefined(value: string[] | string | undefined): string[] | undefined {
@@ -198,6 +223,10 @@ function idsOrUndefined(value: string[] | undefined): string[] | undefined {
   if (!value) return undefined;
   const cleaned = [...new Set(value.map((v) => v.trim()).filter((v) => v !== ""))];
   return cleaned.length ? cleaned : undefined;
+}
+
+function placementOrUndefined(v: number | undefined): number | undefined {
+  return v !== undefined && Number.isInteger(v) && v >= 1 && v <= MAX_PLACEMENT ? v : undefined;
 }
 
 function positiveOrUndefined(v: number | undefined): number | undefined {

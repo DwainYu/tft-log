@@ -1,14 +1,15 @@
-import { avgPlacement } from "../match/match";
+import { avgPlacement, hasResult } from "../match/match";
 import { normalizeCompositionKey } from "../composition/composition";
 import { round } from "../../lib/utils";
 import { dateKey, TIME_SLOTS, OUTSIDE_SLOT_KEY, slotKeyOf, wallClockNow } from "../../lib/wallclock";
-import type { MistakeType, OpeningPlan } from "../types";
+import { TOP4_PLACEMENT, type MistakeType, type OpeningPlan } from "../types";
 
 /** What the statistics engine needs — anything with these fields works, including test fixtures. */
 export interface MatchForStats {
   id: string;
   playedAt: string;
-  placement: number;
+  /** 可选：没有名次的记录是「开局 / 进行中」，不能参与赛果统计。 */
+  placement?: number;
   composition?: string;
   primaryMistake?: MistakeType;
   reviewed?: boolean;
@@ -35,11 +36,20 @@ export interface OverallStats {
   reviewedGames: number;
 }
 
+/**
+ * 赛果统计只数有名次的局。没有名次的记录（开局 / 进行中）在这里被排掉，
+ * 而不是靠 `?? 0` 之类的哨兵混进分母 —— 一条还没打完的局既不是前四也
+ * 不是后四，把它算进分母只会把前四率、吃鸡率往下拖。
+ *
+ * 服务层（`stats-service.finishedMatches`）已经先过滤一次，这里再过滤一次
+ * 是为了让这个纯函数单独被喂到未结算记录时也算对。
+ */
 export function overallStats(matches: MatchForStats[]): OverallStats {
-  const games = matches.length;
-  const wins = matches.filter((m) => m.placement === 1).length;
-  const top4 = matches.filter((m) => m.placement <= 4).length;
-  const bottom4 = matches.filter((m) => m.placement > 4).length;
+  const ranked = matches.filter(hasResult);
+  const games = ranked.length;
+  const wins = ranked.filter((m) => m.placement === 1).length;
+  const top4 = ranked.filter((m) => (m.placement ?? 9) <= 4).length;
+  const bottom4 = ranked.filter((m) => (m.placement ?? 0) > 4).length;
   const reviewedGames = matches.filter((m) => m.reviewed).length;
   return {
     games,
@@ -73,8 +83,8 @@ export function recentWindowStats(
   matches: MatchForStats[],
   window: number,
 ): WindowStats {
-  const slice = lastWindow(matches, window);
-  const top4 = slice.filter((m) => m.placement <= 4).length;
+  const slice = lastWindow(matches.filter(hasResult), window);
+  const top4 = slice.filter((m) => (m.placement ?? 9) <= 4).length;
   return {
     games: slice.length,
     avgPlacement: avgPlacement(slice.map((m) => m.placement)),
@@ -84,15 +94,19 @@ export function recentWindowStats(
 }
 
 /** Placement per game, oldest → newest, for the trend line chart. */
+/**
+ * 没名次的记录一个点都不画：趋势图的 Y 轴是 1–8 的名次，一个 undefined
+ * 要么把点画到轴外，要么让线段跨过去连错。宁可少一个点。
+ */
 export function placementTrendSeries(matches: MatchForStats[], limit = 20) {
-  const slice = lastWindow(matches, limit).reverse();
+  const slice = lastWindow(matches.filter(hasResult), limit).reverse();
   return slice.map((m, i) => ({
     index: i + 1,
     label: m.playedAt.slice(5, 10),
     /** Full wall-clock stamp, so a tooltip can name one exact game. */
     playedAt: m.playedAt,
     placement: m.placement,
-    top4: (m.placement <= 4 ? 1 : 0) as 0 | 1,
+    top4: ((m.placement ?? 9) <= 4 ? 1 : 0) as 0 | 1,
     /** Tooltip-only: the player's own label for this game's line. */
     composition: normalizeCompositionKey(m.composition) || undefined,
     /** Drill-down target: clicking a point opens this match. */
@@ -198,13 +212,19 @@ export function compositionStats(matches: MatchForStats[]): CompositionStat[] {
     list.push(m);
     groups.set(key, list);
   }
-  const out: CompositionStat[] = [...groups.entries()].map(([composition, ms]) => ({
-    composition,
-    games: ms.length,
-    avgPlacement: avgPlacement(ms.map((m) => m.placement)),
-    top4Rate: ms.filter((m) => m.placement <= 4).length / ms.length,
-    lastPlayed: ms.map((m) => m.playedAt).sort().pop() ?? "",
-  }));
+  const out: CompositionStat[] = [...groups.entries()].map(([composition, ms]) => {
+    // 一局一个阵容坑：没名次的记录既不计入 games，也不进 Top4 分母。
+    const ranked = ms.filter(hasResult);
+    return {
+      composition,
+      games: ranked.length,
+      avgPlacement: avgPlacement(ranked.map((m) => m.placement)),
+      top4Rate: ranked.length
+        ? ranked.filter((m) => (m.placement ?? 0) <= TOP4_PLACEMENT).length / ranked.length
+        : null,
+      lastPlayed: ms.map((m) => m.playedAt).sort().pop() ?? "",
+    };
+  });
   out.sort((a, b) => b.games - a.games || a.composition.localeCompare(b.composition));
   return out;
 }
@@ -238,12 +258,17 @@ export function openingPlanStats(matches: MatchForStats[]): OpeningPlanStat[] {
     groups.set(m.openingPlan, list);
   }
   return [...groups.entries()]
-    .map(([plan, ms]) => ({
-      plan,
-      games: ms.length,
-      avgPlacement: avgPlacement(ms.map((m) => m.placement)),
-      top4Rate: ms.filter((m) => m.placement <= 4).length / ms.length,
-    }))
+    .map(([plan, ms]) => {
+      const ranked = ms.filter(hasResult);
+      return {
+        plan,
+        games: ranked.length,
+        avgPlacement: avgPlacement(ranked.map((m) => m.placement)),
+        top4Rate: ranked.length
+          ? ranked.filter((m) => (m.placement ?? 0) <= TOP4_PLACEMENT).length / ranked.length
+          : null,
+      };
+    })
     .sort((a, b) => b.games - a.games || a.plan.localeCompare(b.plan));
 }
 
@@ -276,12 +301,15 @@ export function timeSlotStats(matches: MatchForStats[]): TimeSlotStat[] {
         key === OUTSIDE_SLOT_KEY
           ? "未填时间"
           : TIME_SLOTS.find((s) => s.key === key)?.label ?? key;
+      const ranked = ms.filter(hasResult);
       return {
         key,
         label,
-        games: ms.length,
-        avgPlacement: avgPlacement(ms.map((m) => m.placement)),
-        top4Rate: ms.filter((m) => m.placement <= 4).length / ms.length,
+        games: ranked.length,
+        avgPlacement: avgPlacement(ranked.map((m) => m.placement)),
+        top4Rate: ranked.length
+          ? ranked.filter((m) => (m.placement ?? 0) <= TOP4_PLACEMENT).length / ranked.length
+          : null,
       };
     });
 }

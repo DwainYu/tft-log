@@ -126,6 +126,27 @@ describe("PlacementTrendChart", () => {
     expect(container.querySelectorAll("title").length).toBeGreaterThan(0);
   });
 
+  it("keeps the hover highlight from eating the mouse click", () => {
+    const { container } = render(
+      <PlacementTrendChart data={composedTrend()} avg={4} onSelectMatch={() => {}} />,
+    );
+    // Activate the hover highlight the same way the keyboard does, then make
+    // sure the activeDot it renders cannot take pointer events: it sits on a
+    // higher recharts layer than the clickable dot, concentric with it, so a
+    // real browser's hit test would land here first and the click would never
+    // reach `onClick`. (jsdom cannot hit-test — that exact gap is how this bug
+    // shipped — so this asserts the guard itself.)
+    reachPoint(container, 2);
+    const activeDot = container.querySelector(
+      ".recharts-active-dot circle",
+    ) as SVGElement | null;
+    expect(activeDot).toBeTruthy();
+    const transparent =
+      activeDot!.getAttribute("pointer-events") === "none" ||
+      activeDot!.style.pointerEvents === "none";
+    expect(transparent).toBe(true);
+  });
+
   it("shows each game's own composition in the tooltip", () => {
     const { container } = render(<PlacementTrendChart data={composedTrend()} avg={4} />);
 

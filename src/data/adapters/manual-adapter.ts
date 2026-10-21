@@ -42,6 +42,7 @@ export interface ManualMatchPayload {
 function toNumber(value: string | number | undefined): number | undefined {
   if (value === undefined || value === "") return undefined;
   const n = typeof value === "number" ? value : Number(String(value).replace(/[^\d.+-]/g, ""));
+  // 半截输入（"-"、"1.2.3"）会算出 NaN；当作「没填」而不是塞一个 0 进去。
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -77,7 +78,9 @@ export const ManualAdapter: DataSourceAdapter<ManualMatchPayload> = {
       startedAt,
       endedAt,
       durationSeconds,
-      placement: toNumber(payload.placement) ?? 0,
+      // 名次可选：开局 / 进行中还没有结果。留空必须保持「未记录」，
+      // 这里曾经写成 `?? 0`，一个 0 会被下游当成一条真实赛果。
+      placement: toNumber(payload.placement),
       finalLevel: toNumber(payload.finalLevel),
       finalHealth: toNumber(payload.finalHealth),
       totalGold: toNumber(payload.totalGold),

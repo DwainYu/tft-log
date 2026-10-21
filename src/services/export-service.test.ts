@@ -95,12 +95,78 @@ describe("import", () => {
     const snap = await buildSnapshot();
     snap.decisions.push({ id: "x", matchId: "ghost-match" } as never);
     snap.reviews.push({ id: "y", matchId: "ghost-match" } as never);
-    snap.matches.push({ id: "no-placement" } as never);
+    snap.matches.push({ playedAt: "2026-02-09T21:00" } as never); // no id
+    snap.matches.push(("not-a-record" as unknown) as never); // not even a record
 
     const report = await importSnapshot(snap);
-    expect(report.skipped).toBe(3);
+    expect(report.skipped).toBe(4);
     const decisions = await import("./decision-service").then((m) => m.allDecisions());
     expect(decisions.filter((d) => d.matchId === "ghost-match")).toHaveLength(0);
+  });
+
+  it("keeps a record that has no placement — it is an unfinished game, not junk", async () => {
+    const snap = await buildSnapshot();
+    snap.matches.push({
+      id: "no-placement",
+      playedAt: "2026-02-09T21:00",
+      composition: "Arcader",
+      reviewed: false,
+      createdAt: "2026-02-09T21:00:00.000Z",
+      updatedAt: "2026-02-09T21:00:00.000Z",
+    } as unknown as Match);
+
+    const report = await importSnapshot(snap);
+    expect(report.matches).toBe(1);
+    expect(report.skipped).toBe(0);
+
+    const stored = await matchRepository.get("no-placement");
+    expect(stored).toBeDefined();
+    expect(stored?.placement).toBeUndefined();
+    expect("placement" in (stored ?? {})).toBe(false);
+    // the opening information the player already typed survives the round trip
+    expect(stored?.composition).toBe("Arcader");
+  });
+
+  it("still rejects a placement of 0 or 9 on import", async () => {
+    const snap = await buildSnapshot();
+    snap.matches.push({
+      id: "zero-placement",
+      playedAt: "2026-02-09T21:00",
+      placement: 0,
+      reviewed: false,
+    } as unknown as Match);
+    snap.matches.push({
+      id: "nine-placement",
+      playedAt: "2026-02-09T21:00",
+      placement: 9,
+      reviewed: false,
+    } as unknown as Match);
+
+    const report = await importSnapshot(snap);
+    expect(report.matches).toBe(0);
+    expect(report.skipped).toBe(2);
+    expect(await matchRepository.get("zero-placement")).toBeUndefined();
+    expect(await matchRepository.get("nine-placement")).toBeUndefined();
+  });
+
+  it("round-trips an unfinished match through export → import", async () => {
+    const unfinished = await addMatch({ playedAt: "2026-02-05T13:20", composition: "Arcader" });
+    expect(unfinished.placement).toBeUndefined();
+
+    const snap = await buildSnapshot();
+    await wipeAll();
+    expect(await matchRepository.all()).toHaveLength(0);
+
+    const report = await importSnapshot(JSON.parse(JSON.stringify(snap)));
+    expect(report.matches).toBe(1);
+    expect(report.skipped).toBe(0);
+
+    const [restored] = await matchRepository.all();
+    expect(restored.id).toBe(unfinished.id);
+    expect(restored.placement).toBeUndefined();
+    expect("placement" in restored).toBe(false);
+    expect(restored.composition).toBe("Arcader");
+    expect(restored.playedAt).toBe("2026-02-05T13:20");
   });
 
   it("rejects foreign files", () => {

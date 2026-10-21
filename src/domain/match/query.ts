@@ -86,13 +86,31 @@ export function queryMatches<T extends MatchForQuery>(matches: readonly T[], q: 
   const field = q.sortField ?? DEFAULT_MATCH_QUERY.sortField;
   const dir = q.sortDir ?? DEFAULT_MATCH_QUERY.sortDir;
   const sorted = [...filtered].sort((a, b) => compareMatches(a, b, field));
+  if (field === "placement") {
+    // 按名次排序时，没名次的记录（开局 / 进行中）永远垫底，且它们之间
+    // 恒定按时间新→旧 —— 不能跟着 `dir` 一起被反转，否则 desc 时会翻到最前。
+    const done = sorted.filter((m) => m.placement !== undefined);
+    const open = sorted
+      .filter((m) => m.placement === undefined)
+      .sort((a, b) => b.playedAt.localeCompare(a.playedAt));
+    if (dir === "desc") done.reverse();
+    return [...done, ...open];
+  }
   return dir === "desc" ? sorted.reverse() : sorted;
 }
 
 function compareMatches(a: MatchForQuery, b: MatchForQuery, field: SortField): number {
   switch (field) {
-    case "placement":
+    case "placement": {
+      // 没有名次的记录（开局 / 进行中）永远排在最后，且 `dir` 反转时不能
+      // 被翻到最前 —— 直接相减会得到 NaN，排序结果就变成未定义行为。
+      if (a.placement === undefined && b.placement === undefined) {
+        return a.playedAt.localeCompare(b.playedAt);
+      }
+      if (a.placement === undefined) return 1;
+      if (b.placement === undefined) return -1;
       return a.placement - b.placement || a.playedAt.localeCompare(b.playedAt);
+    }
     case "duration":
       return (a.durationSeconds ?? 0) - (b.durationSeconds ?? 0);
     case "composition":
@@ -111,7 +129,8 @@ const SEARCHABLE = (m: MatchForQuery): string[] => [
   ...(m.augments ?? []),
   m.notes ?? "",
   m.primaryMistake ?? "",
-  String(m.placement),
+  // 没名次就没有可搜的文本，写成 "undefined" 会让搜索命中一堆无关记录。
+  m.placement === undefined ? "" : String(m.placement),
   formatDateTime(m.playedAt),
 ];
 
