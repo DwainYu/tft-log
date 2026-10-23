@@ -15,7 +15,9 @@ export const DRAFT_DEBOUNCE_MS = 700;
  *    transactions (perceived input lag).
  * 2. A pending write is flushed when the player leaves by any route: closing
  *    the tab, backgrounding it, navigating away, or submitting the form.
- *    A debounce alone would lose up to `DRAFT_DEBOUNCE_MS` of typing.
+ *    A debounce alone would lose up to `DRAFT_DEBOUNCE_MS` of typing. Those
+ *    flushes are fire-and-forget: the write still lands, and a rejected one is
+ *    reported rather than left to escape as an unhandled rejection.
  * 3. The saved payload is read from a ref, so the flush always writes the
  *    newest value even if it fires before a re-render lands.
  */
@@ -56,6 +58,19 @@ export function useReviewDraftAutosave({
   // Set once honored: after a discard the form must stop writing, otherwise
   // the next keystroke would resurrect the draft the player just deleted.
   const stopped = useRef(false);
+  // `setSavedAt` is only legal while this instance is mounted. The unmount
+  // flush resolves *after* the component is gone, and React reads the bare
+  // `window` global to pick an update priority (`resolveUpdatePriority`), so a
+  // late update throws `ReferenceError: window is not defined` once the jsdom
+  // environment has been torn down — and it throws out of a promise nobody
+  // awaits, which is what Vitest counts as an unhandled error.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
 
   const write = useCallback(async () => {
     // `matchId` is the primary key of the drafts table; writing "" would
@@ -64,7 +79,7 @@ export function useReviewDraftAutosave({
     busy.current = true;
     try {
       await saveReviewDraft(matchId, latest.current.input, latest.current.openingPlan);
-      setSavedAt(Date.now());
+      if (alive.current) setSavedAt(Date.now());
     } finally {
       busy.current = false;
     }
@@ -82,6 +97,19 @@ export function useReviewDraftAutosave({
     await write();
   }, [cancel, write]);
 
+  /**
+   * A write nobody is waiting for. The draft still has to land, but a rejected
+   * write must not escape as an unhandled rejection: it is reported through
+   * `console.error` instead, which keeps the failure visible without ever
+   * pretending something was saved — `savedAt` is only set by a write that
+   * actually resolved.
+   */
+  const detached = useCallback(() => {
+    flush().catch((err) => {
+      console.error("[review-draft] 后台自动保存失败", err);
+    });
+  }, [flush]);
+
   const stop = useCallback(() => {
     stopped.current = true;
     cancel();
@@ -92,28 +120,28 @@ export function useReviewDraftAutosave({
     if (!enabled) return;
     cancel();
     timer.current = setTimeout(() => {
-      void write();
+      detached();
     }, DRAFT_DEBOUNCE_MS);
     return cancel;
-  }, [input, openingPlan, enabled, cancel, write]);
+  }, [input, openingPlan, enabled, cancel, detached]);
 
   // (2) flush when the tab goes away, and on unmount (route change included)
   useEffect(() => {
-    const onHide = () => void flush();
+    const onHide = () => detached();
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") void flush();
+      if (document.visibilityState === "hidden") detached();
     };
     window.addEventListener("pagehide", onHide);
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("pagehide", onHide);
       document.removeEventListener("visibilitychange", onVisibility);
-      if (enabled) void flush();
+      if (enabled) detached();
     };
     // `enabled` deliberately excluded: it flips false during submit, and the
     // cleanup would then skip the flush for every earlier render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flush]);
+  }, [detached]);
 
   const resume = useCallback(() => {
     stopped.current = false;
