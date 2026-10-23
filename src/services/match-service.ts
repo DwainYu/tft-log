@@ -144,6 +144,15 @@ export async function deleteMatch(id: string): Promise<void> {
     // must not leave images behind that no list can reach.
     removeMatchScreenshots(id),
   ]);
+  // The usage table is derived from `matches`, so a deleted game must not keep
+  // offering its composition in the selector. `replaceAll` upserts before it
+  // prunes, and the failure is swallowed on purpose: a stale suggestion row is
+  // cosmetic, while failing the delete the player asked for is not.
+  try {
+    await rebuildCompositionUsage();
+  } catch {
+    /* derived data */
+  }
 }
 
 export async function getMatch(id: string): Promise<Match | undefined> {

@@ -15,6 +15,7 @@ import {
   updateMatch,
 } from "./match-service";
 import { compositionUsageRepository } from "../data/repository/composition-usage-repository";
+import { compositionSuggestions } from "./composition-usage-service";
 import { addDecision } from "./decision-service";
 import { saveReview } from "./review-service";
 import { ValidationError } from "../lib/errors";
@@ -110,6 +111,90 @@ describe("match service CRUD", () => {
     await deleteMatch(created.id);
     expect(await getMatchBundle(created.id)).toBeNull();
     expect(await allMatches()).toHaveLength(0);
+  });
+
+  it("prunes the composition usage row of the deleted match", async () => {
+    const created = await addMatch({
+      playedAt: "2026-02-05T13:20",
+      placement: "5",
+      composition: "已删除阵容",
+    });
+    expect(await compositionUsageRepository.get("已删除阵容")).toBeTruthy();
+
+    await deleteMatch(created.id);
+
+    expect(await compositionUsageRepository.get("已删除阵容")).toBeUndefined();
+    // the selector reads only this table, so a gone match must stop suggesting it
+    const sections = await compositionSuggestions();
+    const offered = [...sections.recent, ...sections.frequent, ...sections.preset];
+    expect(offered.map((c) => c.key)).not.toContain("已删除阵容");
+  });
+
+  it("keeps other compositions when only one match is deleted", async () => {
+    const doomed = await addMatch({
+      playedAt: "2026-02-05T13:20",
+      placement: "3",
+      composition: "要删的阵容",
+    });
+    const kept = await addMatch({
+      playedAt: "2026-02-04T13:20",
+      placement: "4",
+      composition: "要留的阵容",
+    });
+    const alsoKept = await addMatch({
+      playedAt: "2026-02-03T13:20",
+      placement: "2",
+      composition: "要留的阵容",
+    });
+
+    await deleteMatch(doomed.id);
+
+    expect(await compositionUsageRepository.get("要删的阵容")).toBeUndefined();
+    const keptRow = await compositionUsageRepository.get("要留的阵容");
+    expect(keptRow?.usageCount).toBe(2);
+    expect((await allMatches()).map((m) => m.id).sort()).toEqual(
+      [kept.id, alsoKept.id].sort(),
+    );
+  });
+
+  it("rebuilds idempotently and tolerates deleting an unknown id", async () => {
+    const created = await addMatch({
+      playedAt: "2026-02-05T13:20",
+      placement: "3",
+      composition: "幂等阵容",
+    });
+    const before = await compositionUsageRepository.get("幂等阵容");
+
+    // deleting something that is not there must not disturb the existing rows
+    await expect(deleteMatch("no-such-match-id")).resolves.toBeUndefined();
+    expect(await compositionUsageRepository.get("幂等阵容")).toEqual(before);
+
+    await deleteMatch(created.id);
+    expect(await compositionUsageRepository.get("幂等阵容")).toBeUndefined();
+    expect(await allMatches()).toHaveLength(0);
+  });
+
+  it("does not count an unfinished match's planned composition, and clears it on delete", async () => {
+    // opened at the start of a game: placement is absent, composition is a plan
+    const unfinished = await addMatch({
+      playedAt: "2026-02-05T13:20",
+      composition: "计划阵容",
+    });
+    const settled = await addMatch({
+      playedAt: "2026-02-04T13:20",
+      placement: "2",
+      composition: "已结算阵容",
+    });
+    expect(await compositionUsageRepository.get("计划阵容")).toBeUndefined();
+
+    await deleteMatch(unfinished.id);
+
+    expect(await compositionUsageRepository.get("计划阵容")).toBeUndefined();
+    // the unrelated row survives a delete that could not have touched it
+    const settledRow = await compositionUsageRepository.get("已结算阵容");
+    expect(settledRow).toBeTruthy();
+    expect(settledRow?.usageCount).toBe(1);
+    expect((await allMatches()).map((m) => m.id)).toEqual([settled.id]);
   });
 
   it("marks a match reviewed only when the review is complete", async () => {
