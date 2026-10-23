@@ -8,12 +8,13 @@ import {
   type ReviewInput,
 } from "../../domain/review/review";
 import { OPENING_PLAN_LIST, openingPlanLabel } from "../../domain/labels";
-import type { OpeningPlan, Review } from "../../domain/types";
+import type { OpeningPlan, Review, ReviewDraft } from "../../domain/types";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Field, Textarea } from "../ui/Field";
 import { Panel, PanelHeader } from "../ui/Panel";
 import { MistakePicker } from "../matches/MistakeSelect";
+import { draftOrReview, useReviewDraftAutosave } from "./use-review-draft";
 
 const BLOCKS: { key: keyof typeof REVIEW_SECTIONS; field: keyof ReviewInput; rows: number }[] = [
   { key: "opening", field: "opening", rows: 4 },
@@ -52,6 +53,13 @@ const ERROR_MATCHERS: { text: string; field: keyof typeof FIELD_IDS }[] = [
 const errorFieldOf = (message: string) =>
   ERROR_MATCHERS.find(({ text }) => message.includes(text))?.field;
 
+/** HH:mm:ss of the last autosave — enough to tell "yes, it wrote just now". */
+function formatClock(ts: number): string {
+  const d = new Date(ts);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 export function ReviewForm({
   initial,
   initialOpeningPlan,
@@ -59,7 +67,12 @@ export function ReviewForm({
   onSave,
   onDiscard,
   busy,
+  draft,
+  hasDraft,
+  matchId,
 }: {
+  /** The match being reviewed — the draft key. Required for autosave. */
+  matchId: string;
   initial?: Review;
   /** Structured fact that lives on the match; prefilled so editing is idempotent. */
   initialOpeningPlan?: OpeningPlan;
@@ -69,9 +82,23 @@ export function ReviewForm({
   onSave: (input: ReviewInput, openingPlan: OpeningPlan | null) => void;
   onDiscard?: () => void;
   busy?: boolean;
+  /** Unfinished answers to restore; takes precedence over `initial`. */
+  draft?: ReviewDraft;
+  /** Whether an unfinished draft already exists for this match. */
+  hasDraft?: boolean;
 }) {
-  const [input, setInput] = useState<ReviewInput>(() => reviewInputOf(initial));
-  const [openingPlan, setOpeningPlan] = useState<OpeningPlan | undefined>(initialOpeningPlan);
+  const [input, setInput] = useState<ReviewInput>(() => draftOrReview(draft, reviewInputOf(initial)));
+  const [openingPlan, setOpeningPlan] = useState<OpeningPlan | undefined>(
+    draft ? draft.openingPlan : initialOpeningPlan,
+  );
+  // Autosave is owned here because this is where the answers live. `busy`
+  // disables it while a save is in flight so nothing races the real write.
+  const autosave = useReviewDraftAutosave({
+    matchId,
+    input,
+    openingPlan,
+    enabled: !busy && matchId !== "",
+  });
   // Counted per attempt: the first rejected save and a second one with the
   // exact same messages must both point at the field to fix, otherwise a
   // long form looks like the button did nothing.
@@ -93,12 +120,23 @@ export function ReviewForm({
     if (firstInvalid) document.getElementById(FIELD_IDS[firstInvalid])?.focus();
   }, [firstInvalid, attempts]);
 
+  // A rejected save keeps the player on this page, so the draft has to keep
+  // tracking further typing instead of freezing just before it was stopped.
+  useEffect(() => {
+    if (errors && errors.length > 0) autosave.resume();
+  }, [errors, autosave.resume]);
+
   return (
     <form
       className="flex min-w-0 flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
         setAttempts((n) => n + 1);
+        // Stop autosaving *before* handing over. Completing the 复盘 deletes
+        // the draft, so any later write from this form (the unmount flush in
+        // particular) would resurrect it. Anything typed since the last
+        // debounced write goes straight into the real review instead.
+        autosave.stop();
         onSave(input, openingPlan ?? null);
       }}
     >
@@ -152,6 +190,20 @@ export function ReviewForm({
             还没有记录复盘内容 —— 从下面的「开局路线」开始就行。
           </p>
         )}
+        <p className="mt-2.5 border-t border-line pt-2.5 text-[11px] leading-relaxed text-ink-600">
+          {hasDraft || autosave.savedAt !== null ? (
+            <>
+              草稿已自动保存 —— 关掉页面或刷新都不会丢，也可以从「草稿箱」回来继续。
+              {autosave.savedAt !== null && (
+                <span className="ml-1 text-ink-500">
+                  最近保存 {formatClock(autosave.savedAt)}
+                </span>
+              )}
+            </>
+          ) : (
+            <>边写边自动保存草稿，随时可以离开——内容会留在「草稿箱」。</>
+          )}
+        </p>
       </Panel>
 
       {/* 1 · 开局路线 */}

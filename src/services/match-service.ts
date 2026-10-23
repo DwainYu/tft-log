@@ -10,8 +10,9 @@ import {
 } from "../domain/match/match";
 import { normalizeCompositionKey } from "../domain/composition/composition";
 import { queryMatches, type MatchQuery } from "../domain/match/query";
+import { removeMatchScreenshots } from "./screenshot-service";
 import { seedReview } from "./review-service";
-import { recordCompositionUsage } from "./composition-usage-service";
+import { recordCompositionUsage, rebuildCompositionUsage } from "./composition-usage-service";
 import { ValidationError } from "../lib/errors";
 import { dateKey, toDate } from "../lib/wallclock";
 import { nowIso } from "../lib/utils";
@@ -37,6 +38,9 @@ function assertStaticLinks(input: MatchInput): void {
  * match, saving its review, re-rendering or reloading must not bump it again.
  */
 async function trackCompositionUsage(match: Match): Promise<void> {
+  // 开局就建的记录里，`composition` 是「打算玩什么」，还不是最终阵容。
+  // 等结算补齐名次之后再计入使用次数，否则计划阵容会污染 Recent / Frequent。
+  if (match.placement === undefined) return;
   try {
     await recordCompositionUsage(match.composition, match.playedAt);
   } catch {
@@ -69,9 +73,44 @@ export async function updateMatch(id: string, payload: ManualMatchPayload): Prom
   if (!result.ok) throw new ValidationError(result.errors);
   assertStaticLinks(result.value);
   const next = applyMatchInput(existing, result.value);
+  // The structured fields are ones the form can also *empty*, and that has to
+  // mean "cleared" rather than "not mentioned": `applyMatchInput` merges, so
+  // an absent value would otherwise resurrect whatever the previous version of
+  // this record had — including a placement the player deleted.
+  if (payload.openingPlan === "") next.openingPlan = undefined;
+  if (payload.encounterId === "") next.encounterId = undefined;
+  // 编辑表单提交的就是这一局的全部已知信息，名次留空即「还没结果」。
+  // （未来的 LCU / OCR 只补赛果的写入要走 `saveMatchInput` 那样的合并入口：
+  //  那里不提 `placement` 才是「沿用原来的值」。）
+  // 用 delete 而不是赋 undefined：把键本身摘掉，存储里才不会留下一个
+  // `placement: undefined` 的僵尸键。
+  if (result.value.placement === undefined) delete next.placement;
   if (!next.sessionId) next.sessionId = existing.sessionId ?? (await getActiveSessionId());
   await matchRepository.put(next);
+  await syncCompositionUsage(existing, next);
   return next;
+}
+
+/**
+ * 阵容使用表只在两个时机同步：结算这一步（开局建的记录里 composition 还是
+ * 「打算玩什么」），以及已结算的局改了阵容。编辑路径不走
+ * `trackCompositionUsage`，所以这里用一次幂等重建补齐；两个条件同局同改时
+ * 也只重建一次。`updateMatch` 和 `saveMatchInput` 共用，保证普通编辑和
+ * 未来 LCU / OCR 的结算写入行为一致。
+ */
+async function syncCompositionUsage(existing: Match, next: Match): Promise<void> {
+  const compositionChanged =
+    normalizeCompositionKey(existing.composition) !== normalizeCompositionKey(next.composition);
+  if (
+    (existing.placement === undefined && next.placement !== undefined) ||
+    (next.placement !== undefined && compositionChanged)
+  ) {
+    try {
+      await rebuildCompositionUsage();
+    } catch {
+      // Derived data — a failure here must never fail a save the player made.
+    }
+  }
 }
 
 /** Edit path that already holds a typed input (used by import + tests). */
@@ -85,6 +124,7 @@ export async function saveMatchInput(input: MatchInput, id?: string): Promise<Ma
       const next = applyMatchInput(existing, input);
       if (!next.sessionId) next.sessionId = existing.sessionId ?? (await getActiveSessionId());
       await matchRepository.put(next);
+      await syncCompositionUsage(existing, next);
       return next;
     }
   }
@@ -100,7 +140,19 @@ export async function deleteMatch(id: string): Promise<void> {
     matchRepository.remove(id),
     decisionRepository.removeByMatch(id),
     reviewRepository.removeByMatch(id),
+    // Screenshots go the same way decisions and reviews do: a deleted match
+    // must not leave images behind that no list can reach.
+    removeMatchScreenshots(id),
   ]);
+  // The usage table is derived from `matches`, so a deleted game must not keep
+  // offering its composition in the selector. `replaceAll` upserts before it
+  // prunes, and the failure is swallowed on purpose: a stale suggestion row is
+  // cosmetic, while failing the delete the player asked for is not.
+  try {
+    await rebuildCompositionUsage();
+  } catch {
+    /* derived data */
+  }
 }
 
 export async function getMatch(id: string): Promise<Match | undefined> {
@@ -117,6 +169,19 @@ export async function listMatches(query: MatchQuery = {}): Promise<Match[]> {
 
 export async function recentMatches(limit: number, query: MatchQuery = {}): Promise<Match[]> {
   return (await listMatches({ sortField: "playedAt", sortDir: "desc", ...query })).slice(0, limit);
+}
+
+/**
+ * 最近一条还没结算的对局（没有名次）：开局或进行中开的那条记录。
+ *
+ * 用来给「继续记这一局」一个落点。一局是一条可以持续完善的记录，所以这里
+ * 返回的是已有的那条，而不是新建一条。
+ */
+export async function latestUnfinishedMatch(): Promise<Match | undefined> {
+  const matches = await matchRepository.all();
+  return matches
+    .filter((m) => m.placement === undefined)
+    .sort((a, b) => b.playedAt.localeCompare(a.playedAt))[0];
 }
 
 /** `null` = no such match; callers rely on distinguishing that from "loading". */

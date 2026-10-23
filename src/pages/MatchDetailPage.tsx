@@ -10,18 +10,28 @@ import {
   Trash2,
 } from "lucide-react";
 import { deleteMatch, getMatchBundle } from "../services/match-service";
+import { listScreenshots, listUnattachedScreenshots, setScreenshotMatch } from "../services/screenshot-service";
 import { getSessions } from "../services/session-service";
 import { DAILY_SESSION_ID } from "../domain/types";
 import type { Match } from "../domain/types";
 import { addDecision, removeDecision, updateDecision } from "../services/decision-service";
 import { currentGoals } from "../services/training-service";
 import { mistakeLabel } from "../domain/labels";
+import { encounterNameOrId } from "../components/matches/EncounterSelector";
 import { errorMessage } from "../lib/errors";
-import { durationOf, isBottom4, isTop4, isWin, placementTone } from "../domain/match/match";
+import {
+  durationOf,
+  isBottom4,
+  isTop4,
+  isWin,
+  placementText,
+  placementTone,
+} from "../domain/match/match";
 import { formatDateWeekday, formatTime } from "../lib/wallclock";
 import { formatDuration } from "../lib/utils";
 import { DecisionPanel } from "../components/decisions/DecisionPanel";
 import { DecisionTimeline } from "../components/decisions/DecisionTimeline";
+import { ScreenshotGallery } from "../components/screenshots/ScreenshotGallery";
 import { buildTimeline } from "../domain/decision/timeline";
 import { Badge, EmptyState } from "../components/ui/Badge";
 import { Button, LinkButton } from "../components/ui/Button";
@@ -39,6 +49,8 @@ export function MatchDetailPage() {
   const bundle = useLiveQuery(() => getMatchBundle(id), [id]);
   const goals = useLiveQuery(() => currentGoals(), []);
   const sessions = useLiveQuery(getSessions, []);
+  const screenshotCount = useLiveQuery(() => listScreenshots(id).then((l) => l.length), [id]);
+  const unattached = useLiveQuery(listUnattachedScreenshots, []);
 
   if (bundle === undefined) return <Spinner label="读取对局" />;
   if (bundle === null) {
@@ -75,7 +87,7 @@ export function MatchDetailPage() {
       </div>
 
       <PageHeader
-        title={`第 ${match.placement} 名 · ${match.composition ?? "未填阵容"}`}
+        title={`${placementText(match.placement)} · ${match.composition ?? "未填阵容"}`}
         subtitle={`${match.playedAt.slice(0, 10)} ${formatDateWeekday(match.playedAt)} · ${formatTime(match.playedAt) || "时间未填"}`}
         action={
           <>
@@ -112,13 +124,18 @@ export function MatchDetailPage() {
                 than any other number here. Facts below appear only when the
                 record actually carries them; a wall of em-dashes helps nobody. */}
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3 p-4">
+              {/* 没有名次的记录不能显示成红色的 undefined：它只是还没结算。 */}
               <div
-                className={`num text-5xl font-semibold leading-none ${
-                  tone === "gold" ? "text-gold-300" : tone === "good" ? "text-good" : "text-bad"
+                className={`num font-semibold leading-none ${
+                  match.placement === undefined
+                    ? "text-2xl text-ink-400"
+                    : `text-5xl ${tone === "gold" ? "text-gold-300" : tone === "good" ? "text-good" : "text-bad"}`
                 }`}
               >
-                {match.placement}
-                <span className="ml-1 text-base font-normal text-ink-400">名</span>
+                {match.placement ?? "未结算"}
+                {match.placement !== undefined && (
+                  <span className="ml-1 text-base font-normal text-ink-400">名</span>
+                )}
               </div>
               <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
                 <Fact label="日期" value={match.playedAt.slice(0, 10)} />
@@ -129,10 +146,27 @@ export function MatchDetailPage() {
                   <Fact label="时长" value={formatDuration(durationOf(match))} />
                 )}
                 {match.finalLevel !== undefined && <Fact label="最终等级" value={match.finalLevel} />}
-                {match.finalHealth !== undefined && <Fact label="最终血量" value={match.finalHealth} />}
+                {match.finalHealth !== undefined && (
+                  <Fact label="结束时剩余血量" value={match.finalHealth} />
+                )}
                 {match.totalGold !== undefined && <Fact label="剩余金币" value={match.totalGold} />}
+                {match.encounterId && (
+                  <Fact label="开局事件" value={encounterNameOrId(match.encounterId)} />
+                )}
               </dl>
             </div>
+            {/* 还没结算：这条记录会一直在这儿，打完回来补名次和结束血量。 */}
+            {match.placement === undefined && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-3">
+                <span className="text-xs text-ink-400">
+                  这一局还没记录名次，暂不参与平均名次 / 前四率 / 吃鸡率。
+                </span>
+                <LinkButton to={`/matches/${match.id}/edit`} size="sm">
+                  <Pencil size={12} />
+                  补填赛果
+                </LinkButton>
+              </div>
+            )}
             {match.notes && (
               <p className="border-t border-line px-4 py-3 text-sm text-ink-200">{match.notes}</p>
             )}
@@ -157,6 +191,48 @@ export function MatchDetailPage() {
                 </p>
               )}
             </div>
+          </Panel>
+
+          <Panel>
+            <PanelHeader
+              title="结算截图"
+              subtitle="保存在本机 IndexedDB，不进 JSON 备份"
+              action={<Badge tone="muted">{screenshotCount ?? 0} 张</Badge>}
+            />
+            <ScreenshotGallery
+              matchId={match.id}
+              upload
+              acceptPaste
+              emptyTitle="还没有保存结算截图"
+              emptyHint="把对局结算界面的图片存进来，以后可以查看和删除。支持 PNG / JPEG / WebP / GIF / BMP，单张不超过 10 MB。"
+              onDetach={async (id) => {
+                try {
+                  await setScreenshotMatch(id);
+                  toast.push("已转为未关联截图");
+                } catch (err) {
+                  toast.push(errorMessage(err), "warn");
+                }
+              }}
+            />
+            {(unattached?.length ?? 0) > 0 && (
+              <div className="border-t border-line">
+                <div className="px-4 pt-3 text-[11px] uppercase tracking-wide text-ink-600">
+                  待关联的截图 · {unattached?.length}
+                </div>
+                <ScreenshotGallery
+                  emptyTitle="没有待关联的截图"
+                  emptyHint="取消关联后的截图会回到这里。"
+                  onAttach={async (id) => {
+                    try {
+                      await setScreenshotMatch(id, match.id);
+                      toast.push("已关联到本局");
+                    } catch (err) {
+                      toast.push(errorMessage(err), "warn");
+                    }
+                  }}
+                />
+              </div>
+            )}
           </Panel>
 
           <DecisionPanel
@@ -279,7 +355,11 @@ export function MatchDetailPage() {
         open={confirm}
         onClose={() => setConfirm(false)}
         title="删除这局对局？"
-        subtitle="决策记录和复盘会一起删除，不可撤销"
+        subtitle={
+          screenshotCount
+            ? `决策记录、复盘和 ${screenshotCount} 张截图会一起删除，不可撤销`
+            : "决策记录和复盘会一起删除，不可撤销"
+        }
         footer={
           <>
             <Button
@@ -297,7 +377,7 @@ export function MatchDetailPage() {
         }
       >
         <p className="text-sm text-ink-200">
-          第 {match.placement} 名 · {match.playedAt.slice(0, 10)} ·{" "}
+          {placementText(match.placement)} · {match.playedAt.slice(0, 10)} ·{" "}
           {match.composition ?? "未填阵容"}
         </p>
       </Modal>

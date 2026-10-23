@@ -17,6 +17,7 @@ import {
   dateKey,
   wallClockNow,
 } from "../lib/wallclock";
+import { hasResult } from "../domain/match/match";
 import { formatDate } from "../lib/wallclock";
 
 export interface WeeklyReport extends WeeklySummaryInput {
@@ -31,9 +32,13 @@ export async function weekStats(anchor = wallClockNow()): Promise<WeeklySummaryI
   const matches = (await matchRepository.all())
     .filter((m) => m.playedAt >= start.slice(0, 10) && m.playedAt <= end)
     .sort((a, b) => a.playedAt.localeCompare(b.playedAt));
+  // 赛果统计只认有名次的局：没名次的记录（开局 / 进行中）算进「本周打了几局」，
+  // 但不能进入平均名次和 Top4 分母，否则一个还没打完的局会把整周数据拉低。
+  const ranked = matches.filter(hasResult);
+  const rankedGames = ranked.length;
 
   const games = matches.length;
-  const avg = games ? matches.reduce((s, m) => s + m.placement, 0) / games : null;
+  const avg = rankedGames ? ranked.reduce((s, m) => s + (m.placement ?? 0), 0) / rankedGames : null;
 
   const mistakeCounts = new Map<string, number>();
   for (const m of matches) {
@@ -50,11 +55,11 @@ export async function weekStats(anchor = wallClockNow()): Promise<WeeklySummaryI
 
   const compCounts = new Map<string, number>();
   const compPlacements = new Map<string, number[]>();
-  for (const m of matches) {
+  for (const m of ranked) {
     const composition = normalizeCompositionKey(m.composition);
     if (!composition) continue;
     compCounts.set(composition, (compCounts.get(composition) ?? 0) + 1);
-    compPlacements.set(composition, [...(compPlacements.get(composition) ?? []), m.placement]);
+    compPlacements.set(composition, [...(compPlacements.get(composition) ?? []), m.placement ?? 0]);
   }
   let topComposition: WeeklySummaryInput["topComposition"] = null;
   for (const [composition, games_] of compCounts) {
@@ -73,9 +78,9 @@ export async function weekStats(anchor = wallClockNow()): Promise<WeeklySummaryI
     weekEnd: dateKey(end),
     games,
     avgPlacement: avg !== null ? Math.round(avg * 10) / 10 : null,
-    top4Rate: games ? matches.filter((m) => m.placement <= 4).length / games : null,
-    wins: matches.filter((m) => m.placement === 1).length,
-    bottom4: matches.filter((m) => m.placement > 4).length,
+    top4Rate: rankedGames ? ranked.filter((m) => (m.placement ?? 9) <= 4).length / rankedGames : null,
+    wins: ranked.filter((m) => m.placement === 1).length,
+    bottom4: ranked.filter((m) => (m.placement ?? 0) > 4).length,
     mostCommonMistakes,
     topComposition,
     currentGoal: currentGoal

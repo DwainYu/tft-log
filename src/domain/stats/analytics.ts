@@ -1,6 +1,6 @@
 import { isReviewComplete, type ReviewInput } from "../review/review";
-import { avgPlacement } from "../match/match";
-import type { MistakeType } from "../types";
+import { avgPlacement, hasResult } from "../match/match";
+import { TOP4_PLACEMENT, type MistakeType } from "../types";
 import { UNCLASSIFIED, lastWindow, type MatchForStats } from "./stats";
 
 /**
@@ -25,11 +25,16 @@ export interface GroupStat {
 }
 
 function groupStatOf(key: string, ms: MatchForStats[]): GroupStat {
+  // 和 `overallStats` 同一条规则：赛果只数有名次的局。没名次的记录既不该
+  // 进 Top4 分子，也不该进分母。
+  const ranked = ms.filter(hasResult);
   return {
     key,
-    matches: ms.length,
-    avgPlacement: avgPlacement(ms.map((m) => m.placement)),
-    top4Rate: ms.length ? ms.filter((m) => m.placement <= 4).length / ms.length : null,
+    matches: ranked.length,
+    avgPlacement: avgPlacement(ranked.map((m) => m.placement)),
+    top4Rate: ranked.length
+      ? ranked.filter((m) => (m.placement ?? 9) <= TOP4_PLACEMENT).length / ranked.length
+      : null,
   };
 }
 

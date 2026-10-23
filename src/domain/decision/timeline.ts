@@ -57,7 +57,8 @@ type Decision = {
 export type MatchForTimeline = Pick<Match, "placement" | "finalHealth" | "primaryMistake">;
 
 type Match = {
-  placement: number;
+  /** 可选：还没结算的对局（开局 / 进行中）没有结果，时间线也就没有 outcome 行。 */
+  placement?: number;
   finalHealth?: number;
   primaryMistake?: MistakeType;
 };
@@ -91,6 +92,8 @@ export function buildTimeline(
         (a.sortKey ?? Number.MAX_SAFE_INTEGER) - (b.sortKey ?? Number.MAX_SAFE_INTEGER) ||
         a.createdAt.localeCompare(b.createdAt),
     );
+  // 没名次的对局只展示已经记下的回合决策：outcome 行是赛果，编不出来。
+  if (match.placement === undefined) return events;
   return [
     ...events,
     {

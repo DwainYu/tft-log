@@ -4,9 +4,11 @@ import type {
   Decision,
   Match,
   Review,
+  ReviewDraft,
   TrainingGoal,
   TrainingSession,
 } from "../domain/types";
+import type { MatchScreenshot } from "../domain/screenshot/screenshot";
 import { summarizeCompositionUsage } from "../domain/composition/composition";
 
 export interface AppSettings {
@@ -26,11 +28,22 @@ export interface AppSettings {
  * There is no real user history yet, so the bump is a plain additive
  * schema change — no migration logic.
  *
+ * v4 (局外草稿) adds `reviewDrafts`, a table for 复盘 that are still being
+ * written. It is additive like v2: an existing database keeps every row and
+ * starts with an empty draft table, which is exactly right — nobody had
+ * unfinished drafts before the feature existed.
+ *
  * v3 (Phase 3A) adds `compositionUsage`, a derived per-composition counter
  * for Recent / Frequent / Preset composition picking. Existing v2 databases
  * keep every row; the upgrade backfills usage from the matches that are
  * already there (see the `upgrade` hook) so an upgrading player does not
  * start from an empty table.
+ *
+ * v5 (结算截图) adds `screenshots`: metadata plus the image bytes in one row.
+ * Additive, so it needs no `upgrade` hook — a v4 database keeps every row and
+ * simply starts with no screenshots. Per-match cardinality is small, so the
+ * lone `matchId` index plus an in-memory sort is enough; `matchId` is always a
+ * string (`""` = not attached yet) because Dexie cannot index `undefined`.
  */
 export class TftTrainingDatabase extends Dexie {
   matches!: Table<Match, string>;
@@ -40,6 +53,10 @@ export class TftTrainingDatabase extends Dexie {
   trainingSessions!: Table<TrainingSession, string>;
   settings!: Table<AppSettings, "app">;
   compositionUsage!: Table<CompositionUsage, string>;
+  /** Unfinished 复盘 answers; primary key is the match id (one draft per match). */
+  reviewDrafts!: Table<ReviewDraft, string>;
+  /** Match result screenshots — metadata and bytes in the same row. */
+  screenshots!: Table<MatchScreenshot, string>;
 
   constructor(name = "tft-training-log") {
     super(name);
@@ -70,6 +87,14 @@ export class TftTrainingDatabase extends Dexie {
         const rows = summarizeCompositionUsage(matches);
         if (rows.length > 0) await tx.table("compositionUsage").bulkPut(rows);
       });
+    this.version(4).stores({
+      // `matchId` is the primary key, so "one draft per match" is enforced by
+      // the database and the drafts page can order by recency.
+      reviewDrafts: "matchId, updatedAt",
+    });
+    this.version(5).stores({
+      screenshots: "id, matchId, createdAt",
+    });
   }
 }
 

@@ -2,6 +2,7 @@ import { compositionUsageRepository } from "../data/repository/composition-usage
 import { decisionRepository } from "../data/repository/decision-repository";
 import { matchRepository } from "../data/repository/match-repository";
 import { openingPlanOrUndefined } from "../domain/match/opening";
+import { isPlacement } from "../domain/match/match";
 import { rebuildCompositionUsage } from "./composition-usage-service";
 import { reviewRepository } from "../data/repository/review-repository";
 import { trainingGoalRepository } from "../data/repository/training-goal-repository";
@@ -14,18 +15,111 @@ import {
   type Decision,
   type Match,
   type Review,
+  type SessionType,
   type TrainingGoal,
   type TrainingSession,
 } from "../domain/types";
 import { nowIso } from "../lib/utils";
 import { toDate } from "../lib/wallclock";
-import { validateMatchStaticData } from "../data/tft/match-links";
+import { validateMatchStaticData, encounterIdOrUndefined } from "../data/tft/match-links";
+import { deleteAllScreenshots, screenshotStorage } from "./screenshot-service";
 
 /* ------------------------------------------------------------------ */
 /* Build                                                               */
 /* ------------------------------------------------------------------ */
 
-export async function buildSnapshot(): Promise<DatabaseSnapshot> {
+/* ------------------------------------------------------------------ */
+/* Export scope — full backup, 云巅 only, or 日常 only                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Which slice of the database an export covers.
+ *
+ * `all` is the backup: everything, byte-identical to pre-scope exports.
+ * `competition` / `daily` split on `TrainingSession.type`, which is the only
+ * field that says what kind of training a game belongs to.
+ */
+export const EXPORT_SCOPES = ["all", "competition", "daily"] as const;
+export type ExportScope = (typeof EXPORT_SCOPES)[number];
+
+export const EXPORT_SCOPE_LABELS: Record<ExportScope, string> = {
+  all: "全部数据（完整备份）",
+  competition: "仅云巅 Session",
+  daily: "仅日常 Session",
+};
+
+export interface ExportSummary {
+  sessions: number;
+  matches: number;
+  decisions: number;
+  reviews: number;
+  /**
+   * Matches whose Session cannot be resolved (no `sessionId`, or it names a
+   * Session that no longer exists). They travel in the *day-to-day* export
+   * rather than being dropped — `importSnapshot` assigns exactly those records
+   * to the built-in daily Session anyway, so keeping them here round-trips
+   * truthfully and nothing disappears without being counted.
+   */
+  unclassifiedMatches: number;
+}
+
+/**
+ * Slice a snapshot down to one Session type.
+ *
+ * Pure and DB-free so the filtering is unit-testable; `buildSnapshot` below
+ * just hands it whatever the repositories returned.
+ *
+ * Kept deliberately conservative about what travels with a Session: decisions
+ * and reviews are filtered by the surviving match ids, so a scoped export can
+ * never carry a child record whose parent match it does not include. Training
+ * goals are global (they have no Session), so they stay in every scope — that
+ * way no export can lose one.
+ */
+export function scopeSnapshot(snapshot: DatabaseSnapshot, scope: ExportScope): DatabaseSnapshot {
+  if (scope === "all") return snapshot;
+
+  const sessions = snapshot.trainingSessions.filter((s) => s.type === scope);
+
+  // A match travels with its *Session's* type, never with its own properties:
+  // whether one game was played "well" is a per-game fact and says nothing
+  // about which training context it belongs to. Records whose Session cannot
+  // be resolved fall to `daily`, which is exactly where `importSnapshot` puts
+  // them, so the round trip neither invents nor loses anything.
+  const matches = snapshot.matches.filter((m) => {
+    const type = typeOfSessionId(m.sessionId, snapshot.trainingSessions);
+    if (type === undefined) return scope === "daily";
+    return type === scope;
+  });
+
+  const matchIds = new Set(matches.map((m) => m.id));
+  return {
+    ...snapshot,
+    // The marker a re-import uses to decide what kind of file this is.
+    scope,
+    trainingSessions: sessions,
+    matches,
+    decisions: snapshot.decisions.filter((d) => matchIds.has(d.matchId)),
+    reviews: snapshot.reviews.filter((r) => matchIds.has(r.matchId)),
+    trainingGoals: snapshot.trainingGoals,
+  };
+}
+
+/**
+ * The Session type a match belongs to, or `undefined` when that cannot be
+ * answered — never a guess. The built-in daily Session keeps its type even if
+ * its row were missing, because `DAILY_SESSION_ID` *is* the daily Session.
+ */
+function typeOfSessionId(
+  sessionId: string | undefined,
+  sessions: TrainingSession[],
+): SessionType | undefined {
+  if (sessionId === DAILY_SESSION_ID) return "daily";
+  if (!sessionId) return undefined;
+  return sessions.find((s) => s.id === sessionId)?.type;
+}
+
+/** Build a snapshot for one scope. `all` is exactly today's full backup. */
+export async function buildSnapshot(scope: ExportScope = "all"): Promise<DatabaseSnapshot> {
   const [matches, decisions, reviews, trainingGoals, trainingSessions] = await Promise.all([
     matchRepository.all(),
     decisionRepository.all(),
@@ -33,7 +127,7 @@ export async function buildSnapshot(): Promise<DatabaseSnapshot> {
     trainingGoalRepository.all(),
     trainingSessionRepository.all(),
   ]);
-  return {
+  const snapshot: DatabaseSnapshot = {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
     exportedAt: nowIso(),
     app: "tft-training-log",
@@ -43,6 +137,30 @@ export async function buildSnapshot(): Promise<DatabaseSnapshot> {
     trainingGoals,
     trainingSessions,
   };
+  return scope === "all" ? snapshot : scopeSnapshot(snapshot, scope);
+}
+
+/** Snapshot plus the counts the Data page reports back after downloading. */
+export async function buildScopedExport(
+  scope: ExportScope,
+): Promise<{ snapshot: DatabaseSnapshot; summary: ExportSummary }> {
+  const snapshot = await buildSnapshot(scope);
+  const unclassifiedMatches =
+    scope === "all" ? 0 : countUnclassified(snapshot.matches, snapshot.trainingSessions);
+  return {
+    snapshot,
+    summary: {
+      sessions: snapshot.trainingSessions.length,
+      matches: snapshot.matches.length,
+      decisions: snapshot.decisions.length,
+      reviews: snapshot.reviews.length,
+      unclassifiedMatches,
+    },
+  };
+}
+
+function countUnclassified(matches: Match[], sessions: TrainingSession[]): number {
+  return matches.filter((m) => typeOfSessionId(m.sessionId, sessions) === undefined).length;
 }
 
 export function snapshotToJson(snapshot: DatabaseSnapshot): string {
@@ -64,6 +182,7 @@ const CSV_COLUMNS: { key: keyof Match & string; header: string }[] = [
   { key: "primaryMistake", header: "primary_mistake" },
   { key: "reviewed", header: "reviewed" },
   { key: "openingPlan", header: "opening_plan" },
+  { key: "encounterId", header: "encounter_id" },
   { key: "notes", header: "notes" },
   { key: "sessionId", header: "session_id" },
 ];
@@ -127,7 +246,7 @@ export function parseSnapshot(text: string): DatabaseSnapshot {
     throw new Error("文件不是合法的 JSON");
   }
   if (!isRecord(raw) || raw.app !== "tft-training-log") {
-    throw new Error("不是 TFT 弈记 导出的文件（缺少 app 标识）");
+    throw new Error("不是 TFT 日志 导出的文件（缺少 app 标识）");
   }
   const snap = raw as Partial<DatabaseSnapshot>;
   for (const key of ["matches", "decisions", "reviews", "trainingGoals"] as const) {
@@ -193,9 +312,16 @@ export async function importSnapshot(snapshot: DatabaseSnapshot): Promise<Import
 
   // Matches carrying canonical S18 ids are additionally gated: an id that the
   // static snapshot does not know about is skipped, not silently imported.
+  //
+  // 名次是可选的（开局 / 进行中 / OCR 只认出一部分的记录都没有名次），但
+  // 一旦出现就必须是 1 – 8：一个 0 会被统计当成真实赛果。缺名次的记录照旧
+  // 导入 —— 丢掉它等于丢掉用户已经记下的开局信息。
   const validMatches = snapshot.matches.filter(
     (m) =>
-      isRecord(m) && hasId(m) && typeof m.placement === "number" && validateMatchStaticData(m).length === 0,
+      isRecord(m) &&
+      hasId(m) &&
+      (m.placement === undefined || isPlacement(m.placement)) &&
+      validateMatchStaticData(m).length === 0,
   );
   const matches: Match[] = validMatches.map((m) => ({
     ...m,
@@ -204,8 +330,12 @@ export async function importSnapshot(snapshot: DatabaseSnapshot): Promise<Import
         ? m.sessionId
         : DAILY_SESSION_ID,
     // A structured value the vocabulary does not know is dropped, not kept:
-    // it would otherwise land in a statistic nobody can reproduce.
+    // it would otherwise land in a statistic nobody can reproduce. Both stay
+    // `undefined` (= never recorded) rather than being coerced, which is what
+    // keeps old records byte-identical to new ones that simply never touched
+    // these fields.
     openingPlan: openingPlanOrUndefined(m.openingPlan),
+    encounterId: encounterIdOrUndefined(m.encounterId),
   }));
 
   const validMatchIds = new Set(matches.map((m) => m.id));
@@ -252,14 +382,29 @@ export async function importSnapshot(snapshot: DatabaseSnapshot): Promise<Import
   };
 }
 
-export async function storageCounts(): Promise<{ matches: number; decisions: number; reviews: number; trainingGoals: number }> {
-  const [m, d, r, g] = await Promise.all([
+export async function storageCounts(): Promise<{
+  matches: number;
+  decisions: number;
+  reviews: number;
+  trainingGoals: number;
+  screenshots: number;
+  screenshotBytes: number;
+}> {
+  const [m, d, r, g, shots] = await Promise.all([
     matchRepository.all(),
     decisionRepository.all(),
     reviewRepository.all(),
     trainingGoalRepository.all(),
+    screenshotStorage(),
   ]);
-  return { matches: m.length, decisions: d.length, reviews: r.length, trainingGoals: g.length };
+  return {
+    matches: m.length,
+    decisions: d.length,
+    reviews: r.length,
+    trainingGoals: g.length,
+    screenshots: shots.count,
+    screenshotBytes: shots.bytes,
+  };
 }
 
 export async function wipeAll(): Promise<void> {
@@ -270,6 +415,9 @@ export async function wipeAll(): Promise<void> {
     trainingGoalRepository.clear(),
     // derived from matches — nothing left to derive from means nothing to keep
     compositionUsageRepository.clear(),
+    // Image bytes are the one thing IndexedDB keeps that a JSON backup does
+    // not carry, so leaving them here would be unrecoverable garbage.
+    deleteAllScreenshots(),
   ]);
 }
 

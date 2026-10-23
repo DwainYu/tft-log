@@ -50,6 +50,14 @@ export interface MatchFormDraft {
   notes: string;
   /** Training session this match belongs to (defaults to the active one). */
   sessionId: string;
+  /** Structured opening route; `""` = not marked. See `OPENING_PLANS`. */
+  openingPlan: string;
+  /**
+   * Opening encounter id from the active set catalog.
+   * `""` = not recorded yet (distinct from the catalog's "no encounter" id,
+   * which means the game genuinely had none).
+   */
+  encounterId: string;
 }
 
 /**
@@ -138,6 +146,8 @@ export function emptyDraft(date = new Date(), sessionId = DAILY_SESSION_ID): Mat
     primaryMistake: "",
     notes: "",
     sessionId,
+    openingPlan: "",
+    encounterId: "",
   };
 }
 
@@ -148,7 +158,9 @@ export function draftFromMatch(
   return {
     date: match.playedAt.slice(0, 10),
     startTime: timeText(match.startedAt ?? ""),
-    endTime: timeText(match.endedAt ?? match.playedAt),
+    // 结束时间只回填真实的结束时间。开局 / 进行中的记录还没有结束，把
+    // `playedAt`（此时只是占位）填进去会让开始 == 结束，保存必被拦。
+    endTime: match.placement !== undefined ? timeText(match.endedAt ?? match.playedAt) : timeText(match.endedAt ?? ""),
     durationMinutes:
       match.durationSeconds !== undefined ? String(Math.round(match.durationSeconds / 60)) : "",
     placement: match.placement,
@@ -166,6 +178,8 @@ export function draftFromMatch(
     primaryMistake: match.primaryMistake ?? "",
     notes: match.notes ?? "",
     sessionId: match.sessionId ?? fallbackSessionId,
+    openingPlan: match.openingPlan ?? "",
+    encounterId: match.encounterId ?? "",
   };
 }
 
@@ -177,7 +191,9 @@ export function draftToPayload(draft: MatchFormDraft): MatchFormPayload {
   const endedAt = endTime ? `${date}T${endTime}` : "";
   // playedAt is the timestamp every list/sort/filter uses: prefer the end of
   // the game, fall back to its start, then to the date alone.
-  const playedAt = endedAt || startedAt || date;
+  // `T00:00` 而不是光秃秃的日期：同一天里 00:00 会排在任何具体时间之前，
+  // 只写日期的话这条记录会掉到列表底部。
+  const playedAt = endedAt || startedAt || `${date}T00:00`;
   return {
     playedAt,
     startedAt: startedAt || undefined,
@@ -211,6 +227,8 @@ export function draftToPayload(draft: MatchFormDraft): MatchFormPayload {
     primaryMistake: draft.primaryMistake,
     notes: draft.notes,
     sessionId: draft.sessionId || undefined,
+    openingPlan: draft.openingPlan,
+    encounterId: draft.encounterId,
   };
 }
 

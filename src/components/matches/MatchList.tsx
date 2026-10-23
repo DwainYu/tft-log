@@ -1,17 +1,19 @@
 import { Link, useNavigate } from "react-router-dom";
 import { CheckCircle2, ChevronRight, Circle } from "lucide-react";
 import { mistakeLabel } from "../../domain/labels";
-import { placementTone } from "../../domain/match/match";
+import { placementText, placementTone } from "../../domain/match/match";
 import type { Match } from "../../domain/types";
 import { formatDuration } from "../../lib/utils";
 import { DESKTOP_QUERY, useMediaQuery } from "../../lib/use-media-query";
 import { formatDateWeekday, formatTime } from "../../lib/wallclock";
 import { Badge } from "../ui/Badge";
 
-const TONE: Record<string, "gold" | "good" | "bad"> = {
+const TONE: Record<string, "gold" | "good" | "bad" | "neutral"> = {
   gold: "gold",
   good: "good",
   bad: "bad",
+  // 还没结算的对局：中性色，别让它看起来像打崩了。
+  muted: "neutral",
 };
 
 const linkClass = "text-xs text-gold-300 underline-offset-4 hover:underline";
@@ -96,7 +98,7 @@ function MatchRow({
         </div>
       </td>
       <td className="px-3 py-2.5">
-        <Badge tone={TONE[placementTone(m.placement)]}>第 {m.placement} 名</Badge>
+        <Badge tone={TONE[placementTone(m.placement)]}>{placementText(m.placement)}</Badge>
       </td>
       <td className="max-w-[22ch] truncate px-3 py-2.5 text-ink-200">
         {m.composition ?? <span className="text-ink-600">未填</span>}
@@ -151,7 +153,7 @@ function MatchCards({ matches }: { matches: Match[] }) {
         <li key={m.id}>
           <Link to={`/matches/${m.id}`} className="block px-4 py-3 hover:bg-base-800/60">
             <div className="flex items-center gap-2">
-              <Badge tone={TONE[placementTone(m.placement)]}>第 {m.placement} 名</Badge>
+              <Badge tone={TONE[placementTone(m.placement)]}>{placementText(m.placement)}</Badge>
               <span className="num text-xs text-ink-400">
                 {m.playedAt.slice(5, 10)} {formatTime(m.playedAt)}
               </span>

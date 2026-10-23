@@ -64,6 +64,42 @@ describe("queryMatches", () => {
     expect(ids(queryMatches(matches, { sessionId: "cup-prep" }))).toEqual([]);
   });
 
+  it("sorts placement-less records last in both directions", () => {
+    const withGaps: MatchForQuery[] = [
+      m({ id: "done-2", playedAt: "2026-02-05T13:00", placement: 2 }),
+      m({ id: "open", playedAt: "2026-02-06T13:00", placement: undefined }),
+      m({ id: "done-1", playedAt: "2026-02-04T13:00", placement: 1 }),
+      m({ id: "open-old", playedAt: "2026-02-02T13:00", placement: undefined }),
+    ];
+
+    // ascending: 1, 2, then the unfinished ones (newest first among themselves)
+    expect(ids(queryMatches(withGaps, { sortField: "placement", sortDir: "asc" }))).toEqual([
+      "done-1",
+      "done-2",
+      "open",
+      "open-old",
+    ]);
+
+    // descending: 2, 1, then the unfinished ones — reversing must not float
+    // them to the top, which a plain `a - b` would do via NaN.
+    expect(ids(queryMatches(withGaps, { sortField: "placement", sortDir: "desc" }))).toEqual([
+      "done-2",
+      "done-1",
+      "open",
+      "open-old",
+    ]);
+  });
+
+  it("excludes placement-less records from the top4 / bottom4 / win filters", () => {
+    const withGap: MatchForQuery[] = [
+      m({ id: "settled", playedAt: "2026-02-05T13:00", placement: 3 }),
+      m({ id: "open", playedAt: "2026-02-06T13:00", placement: undefined }),
+    ];
+    expect(ids(queryMatches(withGap, { placement: "top4" }))).toEqual(["settled"]);
+    expect(ids(queryMatches(withGap, { placement: "bottom4" }))).toEqual([]);
+    expect(ids(queryMatches(withGap, { placement: "win" }))).toEqual([]);
+  });
+
   it("applies several filters together", () => {
     expect(
       ids(queryMatches(matches, { composition: "Arcader", placement: "top4", sortDir: "asc" })),

@@ -9,7 +9,7 @@ import {
   trend,
 } from "./stats-service";
 import { createSession, ensureDefaultSessions, setActiveSession } from "./session-service";
-import { saveMatchInput } from "./match-service";
+import { allMatches, saveMatchInput } from "./match-service";
 import { resetDatabase } from "../test/db-helper";
 
 beforeEach(resetDatabase);
@@ -87,6 +87,57 @@ describe("session-scoped statistics", () => {
     expect((await timeSlotChart(cup.id)).length).toBe(0);
     expect((await mistakeChart(cup.id)).length).toBe(0);
     expect((await recentWindow(10, cup.id)).games).toBe(0);
+  });
+
+  it("ignores unfinished matches (no placement) everywhere", async () => {
+    await ensureDefaultSessions();
+    await saveMatchInput({ playedAt: "2026-10-14T13:00", placement: 2, composition: "Arcader" });
+    await saveMatchInput({ playedAt: "2026-10-15T13:00", placement: 4, composition: "Arcader" });
+    const before = await allOverall("daily");
+    expect(before.games).toBe(2);
+    expect(before.avgPlacement).toBe(3);
+    expect(before.top4Rate).toBe(1);
+    expect(before.winRate).toBe(0);
+    expect(before.bottom4Rate).toBe(0);
+    const trendBefore = await trend(20, "daily");
+    expect(trendBefore).toHaveLength(2);
+
+    // three opening records: no result yet, so no statistic may move
+    await saveMatchInput({ playedAt: "2026-10-16T13:00", composition: "Rebel" });
+    await saveMatchInput({ playedAt: "2026-10-17T13:00", composition: "Rebel" });
+    await saveMatchInput({ playedAt: "2026-10-18T13:00", composition: "Rebel" });
+
+    const after = await allOverall("daily");
+    expect(after.games).toBe(2);
+    expect(after.avgPlacement).toBe(3);
+    expect(after.top4Rate).toBe(1);
+    expect(after.winRate).toBe(0);
+    expect(after.bottom4Rate).toBe(0);
+
+    const trendAfter = await trend(20, "daily");
+    expect(trendAfter).toHaveLength(2);
+    expect(trendAfter.map((p) => p.id)).toEqual(trendBefore.map((p) => p.id));
+
+    // and the unfinished games are still in the database, not dropped
+    expect((await allMatches()).filter((m) => m.placement === undefined)).toHaveLength(3);
+  });
+
+  it("lets a match that started unfinished join the stats once it is settled", async () => {
+    await ensureDefaultSessions();
+    const opening = await saveMatchInput({ playedAt: "2026-10-14T13:00", composition: "Arcader" });
+    expect((await allOverall("daily")).games).toBe(0);
+
+    const settled = await saveMatchInput({ playedAt: opening.playedAt, placement: 1 }, opening.id);
+    expect(settled.placement).toBe(1);
+    const s = await allOverall("daily");
+    expect(s.games).toBe(1);
+    expect(s.avgPlacement).toBe(1);
+    expect(s.wins).toBe(1);
+    expect(s.winRate).toBe(1);
+    expect(await trend(20, "daily")).toHaveLength(1);
+
+    // settling must not create a second record
+    expect(await allMatches()).toHaveLength(1);
   });
 
   it("scopes streaks, windows and charts to the session", async () => {

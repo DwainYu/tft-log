@@ -9,6 +9,7 @@ import { MatchesPage } from "./pages/MatchesPage";
 import { MatchDetailPage } from "./pages/MatchDetailPage";
 import { MatchFormPage } from "./pages/MatchFormPage";
 import { ReviewPage } from "./pages/ReviewPage";
+import { ReviewDraftsPage } from "./pages/ReviewDraftsPage";
 import { StatisticsPage } from "./pages/StatisticsPage";
 import { TrainingGoalsPage } from "./pages/TrainingGoalsPage";
 import { WeeklyReviewPage } from "./pages/WeeklyReviewPage";
@@ -30,6 +31,7 @@ export function App() {
                 <Route path="/matches/:id" element={<MatchDetailPage />} />
                 <Route path="/matches/:id/edit" element={<MatchFormPage mode="edit" />} />
                 <Route path="/matches/:id/review" element={<ReviewPage />} />
+                <Route path="/drafts" element={<ReviewDraftsPage />} />
                 <Route path="/statistics" element={<StatisticsPage />} />
                 <Route path="/data-center" element={<DataCenterPage />} />
                 <Route path="/goals" element={<TrainingGoalsPage />} />

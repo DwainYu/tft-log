@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ChevronLeft } from "lucide-react";
 import { deleteMatch, getMatch } from "../services/match-service";
+import { placementText } from "../domain/match/match";
 import { useQuickAdd } from "../components/matches/QuickAddProvider";
 import { MatchForm } from "../components/matches/MatchForm";
 import { Button } from "../components/ui/Button";
@@ -97,7 +98,7 @@ export function MatchFormPage({ mode }: { mode: "create" | "edit" }) {
       >
         <p className="text-sm text-ink-200">
           {found
-            ? `第 ${found.placement} 名 · ${found.playedAt.slice(0, 10)} · ${found.composition ?? "未填阵容"}`
+            ? `${placementText(found.placement)} · ${found.playedAt.slice(0, 10)} · ${found.composition ?? "未填阵容"}`
             : ""}
         </p>
       </Modal>

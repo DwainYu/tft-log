@@ -1,5 +1,7 @@
 import { validateMatchInput, type MatchInput } from "../../domain/match/match";
+import { openingPlanOrUndefined } from "../../domain/match/opening";
 import { MISTAKE_TYPE_LIST } from "../../domain/labels";
+import { encounterIdOrUndefined } from "../../data/tft/match-links";
 import { secondsBetween, toDate, wallClockNow } from "../../lib/wallclock";
 import { parseList } from "../../lib/utils";
 import type { AdapterResult, DataSourceAdapter } from "./types";
@@ -31,11 +33,16 @@ export interface ManualMatchPayload {
   sessionId?: string;
   primaryMistake?: string;
   notes?: string;
+  /** Structured 复盘 fact, see `OPENING_PLANS`. */
+  openingPlan?: string;
+  /** Opening encounter id from the active set's encounter catalog. */
+  encounterId?: string;
 }
 
 function toNumber(value: string | number | undefined): number | undefined {
   if (value === undefined || value === "") return undefined;
   const n = typeof value === "number" ? value : Number(String(value).replace(/[^\d.+-]/g, ""));
+  // 半截输入（"-"、"1.2.3"）会算出 NaN；当作「没填」而不是塞一个 0 进去。
   return Number.isFinite(n) ? n : undefined;
 }
 
@@ -61,13 +68,19 @@ export const ManualAdapter: DataSourceAdapter<ManualMatchPayload> = {
 
     const mistakeRaw = payload.primaryMistake?.trim().toUpperCase();
     const primaryMistake = MISTAKE_TYPE_LIST.find((t) => t === mistakeRaw);
+    // Both structured facts are validated by their own vocabulary before they
+    // reach `validateMatchInput`; an unknown value becomes "not recorded"
+    // rather than an error, because neither field is required to save a game.
+    const openingPlan = openingPlanOrUndefined(payload.openingPlan);
 
     const input: MatchInput = {
       playedAt,
       startedAt,
       endedAt,
       durationSeconds,
-      placement: toNumber(payload.placement) ?? 0,
+      // 名次可选：开局 / 进行中还没有结果。留空必须保持「未记录」，
+      // 这里曾经写成 `?? 0`，一个 0 会被下游当成一条真实赛果。
+      placement: toNumber(payload.placement),
       finalLevel: toNumber(payload.finalLevel),
       finalHealth: toNumber(payload.finalHealth),
       totalGold: toNumber(payload.totalGold),
@@ -82,6 +95,8 @@ export const ManualAdapter: DataSourceAdapter<ManualMatchPayload> = {
       sessionId: payload.sessionId?.trim() || undefined,
       primaryMistake,
       notes: payload.notes?.trim() || undefined,
+      openingPlan,
+      encounterId: encounterIdOrUndefined(payload.encounterId),
     };
 
     const errors = validateMatchInput(input);

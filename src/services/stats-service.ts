@@ -37,6 +37,9 @@ import {
 } from "../domain/stats/stats";
 import type { MistakeType, Match } from "../domain/types";
 
+import { hasResult } from "../domain/match/match";
+import type { MatchForStats } from "../domain/stats/stats";
+
 /**
  * Statistics are pure functions over the matches table; this service just
  * loads the data and hands the results to the pages. Keeping the math in
@@ -47,26 +50,43 @@ import type { MistakeType, Match } from "../domain/types";
  * statistics never close the data away from the player.
  */
 
+/**
+ * 统计只看有赛果的对局。
+ *
+ * 一条记录可以在开局时就建起来（`Match.placement` 缺席），之后逐步补齐。
+ * 在补齐之前它不是赛果：让它进平均名次 / 前四率 / 吃鸡率 / 名次趋势，等于
+ * 用一条「还没打完」的局去稀释真实成绩，而且趋势图上会多出一个没有名次的点。
+ * 未完成的记录仍然在对局列表里，随时可以点开继续记。
+ */
+function withResult(matches: Match[]): MatchForStats[] {
+  return matches.filter(hasResult);
+}
+
 async function scopedMatches(sessionId?: string): Promise<Match[]> {
   const all = await matchRepository.all();
   return sessionId ? all.filter((m) => m.sessionId === sessionId) : all;
 }
 
+/** Same scoping, but only games that already have a placement. */
+async function finishedMatches(sessionId?: string): Promise<MatchForStats[]> {
+  return withResult(await scopedMatches(sessionId));
+}
+
 export async function allOverall(sessionId?: string): Promise<OverallStats> {
-  return overallStats(await scopedMatches(sessionId));
+  return overallStats(await finishedMatches(sessionId));
 }
 
 export async function allStreak(sessionId?: string): Promise<number> {
-  return trainingStreak(await scopedMatches(sessionId));
+  return trainingStreak(await finishedMatches(sessionId));
 }
 
 /** Newest-`limit` games, oldest → newest, ready for a line chart. */
 export async function trend(limit = 20, sessionId?: string) {
-  return placementTrendSeries(await scopedMatches(sessionId), limit);
+  return placementTrendSeries(await finishedMatches(sessionId), limit);
 }
 
 export async function recentWindow(window: number, sessionId?: string) {
-  return recentWindowStats(await scopedMatches(sessionId), window);
+  return recentWindowStats(await finishedMatches(sessionId), window);
 }
 
 /** Recent window vs. the one before it — the "am I improving?" number. */
@@ -74,7 +94,7 @@ export async function windowComparison(
   window = 10,
   sessionId?: string,
 ): Promise<WindowComparison> {
-  return compareRecentWindows(await scopedMatches(sessionId), window);
+  return compareRecentWindows(await finishedMatches(sessionId), window);
 }
 
 export interface MistakeChartEntry {
@@ -84,7 +104,7 @@ export interface MistakeChartEntry {
 }
 
 export async function mistakeChart(sessionId?: string): Promise<MistakeChartEntry[]> {
-  return mistakeCounts(await scopedMatches(sessionId))
+  return mistakeCounts(await finishedMatches(sessionId))
     .filter((c) => c.type !== UNCLASSIFIED || c.count > 0)
     .map((c) => ({
       key: c.type,
@@ -94,20 +114,20 @@ export async function mistakeChart(sessionId?: string): Promise<MistakeChartEntr
 }
 
 export async function commonMistakes(limit = 3, sessionId?: string) {
-  return mostCommonMistakes(await scopedMatches(sessionId), limit);
+  return mostCommonMistakes(await finishedMatches(sessionId), limit);
 }
 
 export async function compositionChart(sessionId?: string): Promise<CompositionStat[]> {
-  return compositionStats(await scopedMatches(sessionId));
+  return compositionStats(await finishedMatches(sessionId));
 }
 
 /** Structured opening route × placement. Empty until someone marks a route. */
 export async function openingPlanChart(sessionId?: string): Promise<OpeningPlanStat[]> {
-  return openingPlanStats(await scopedMatches(sessionId));
+  return openingPlanStats(await finishedMatches(sessionId));
 }
 
 export async function timeSlotChart(sessionId?: string): Promise<TimeSlotStat[]> {
-  return timeSlotStats(await scopedMatches(sessionId));
+  return timeSlotStats(await finishedMatches(sessionId));
 }
 
 /* ------------------------------------------------------------------ */
@@ -155,7 +175,7 @@ export async function reviewCoverageChart(sessionId?: string): Promise<ReviewCov
 /** Decisions grouped by the kind of call, ranked by match placement. */
 export async function decisionTypeChart(sessionId?: string): Promise<GroupStat[]> {
   const [matches, decisions] = await Promise.all([
-    scopedMatches(sessionId),
+    finishedMatches(sessionId),
     decisionRepository.all(),
   ]);
   return decisionTypeStats(matches, decisions);
@@ -164,7 +184,7 @@ export async function decisionTypeChart(sessionId?: string): Promise<GroupStat[]
 /** Decisions grouped by the player's own hindsight verdict. */
 export async function decisionHindsightChart(sessionId?: string): Promise<GroupStat[]> {
   const [matches, decisions] = await Promise.all([
-    scopedMatches(sessionId),
+    finishedMatches(sessionId),
     decisionRepository.all(),
   ]);
   return decisionHindsightStats(matches, decisions);
@@ -176,7 +196,7 @@ export async function decisionHindsightChart(sessionId?: string): Promise<GroupS
  * unknown row stays visible instead of being silently dropped.
  */
 export async function augmentChart(sessionId?: string): Promise<(GroupStat & { name: string })[]> {
-  const matches = await scopedMatches(sessionId);
+  const matches = await finishedMatches(sessionId);
   return augmentStats(matches).map((row) => ({
     ...row,
     name: augmentRepository.getAugmentById(row.key)?.name ?? row.key,
@@ -188,7 +208,7 @@ export async function mistakeTrendChart(
   window = 10,
   sessionId?: string,
 ): Promise<MistakeWindowRow[]> {
-  return mistakeWindowCounts(await scopedMatches(sessionId), window);
+  return mistakeWindowCounts(await finishedMatches(sessionId), window);
 }
 
 /* ------------------------------------------------------------------ */
@@ -230,7 +250,7 @@ export const NUMERIC_BUCKETS = {
 } as const;
 
 export async function numericBreakdownChart(sessionId?: string): Promise<NumericBreakdown> {
-  const matches = await scopedMatches(sessionId);
+  const matches = await finishedMatches(sessionId);
   return {
     health: bucketStats(matches, (m) => m.finalHealth, [...NUMERIC_BUCKETS.health]),
     duration: bucketStats(matches, (m) => m.durationSeconds, [...NUMERIC_BUCKETS.duration]),

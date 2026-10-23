@@ -10,6 +10,7 @@ import type { Match } from "../domain/types";
  */
 
 const DB_NAME = "composition-usage-migration";
+const V4_DB_NAME = "review-draft-migration";
 
 const v2Match = (id: string, composition: string | undefined, playedAt: string): Match => ({
   id,
@@ -89,6 +90,134 @@ describe("Dexie v2 -> v3 migration", () => {
     try {
       expect(await upgraded.compositionUsage.count()).toBe(0);
       expect(await upgraded.matches.count()).toBe(0);
+    } finally {
+      await upgraded.delete();
+    }
+  });
+});
+
+/**
+ * v4 adds `reviewDrafts` for the 草稿箱. Nothing has to be backfilled —
+ * nobody had unfinished drafts before the feature existed — but every table
+ * that existed in v3 has to survive untouched, and the new table must accept
+ * one row per match.
+ */
+function openV3(): Dexie {
+  const old = new Dexie(V4_DB_NAME);
+  old.version(1).stores({
+    matches: "id, playedAt, placement, composition, reviewed, primaryMistake",
+    decisions: "id, matchId, type",
+    reviews: "id, &matchId, primaryMistake, updatedAt",
+    trainingGoals: "id, status, startDate",
+  });
+  old.version(2).stores({
+    trainingSessions: "id, type",
+    settings: "&id",
+  });
+  old.version(3).stores({
+    compositionUsage: "compositionKey, usageCount, lastUsedAt",
+  });
+  return old;
+}
+
+describe("Dexie v3 -> v4 migration", () => {
+  it("keeps every existing table and starts with an empty draft table", async () => {
+    await Dexie.delete(V4_DB_NAME);
+    const old = openV3();
+    await old.table("matches").bulkPut([
+      v2Match("m-1", "福牛", "2026-10-01T13:00"),
+      v2Match("m-2", "枪手", "2026-10-02T13:00"),
+    ]);
+    await old.table("reviews").put({
+      id: "r-1",
+      matchId: "m-1",
+      createdAt: "2026-10-01T13:00:00.000Z",
+      updatedAt: "2026-10-01T13:00:00.000Z",
+    });
+    await old.close();
+
+    const upgraded = new TftTrainingDatabase(V4_DB_NAME);
+    await upgraded.open();
+    try {
+      expect(await upgraded.matches.count()).toBe(2);
+      expect(await upgraded.reviews.count()).toBe(1);
+      expect(await upgraded.reviewDrafts.count()).toBe(0);
+      // one draft per match, enforced by the schema
+      expect(upgraded.reviewDrafts.schema.primKey.name).toBe("matchId");
+    } finally {
+      await upgraded.delete();
+    }
+  });
+});
+
+/**
+ * v5 adds `screenshots` for 结算截图. Like v4 there is nothing to backfill —
+ * nobody had screenshots before the feature existed — but every earlier table
+ * has to survive untouched, the new table must start empty, and it must accept
+ * a row whose value is a Blob, which is the whole point of it.
+ */
+const V5_DB_NAME = "screenshot-migration";
+const PNG_HEADER = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+function openV4(): Dexie {
+  const old = new Dexie(V5_DB_NAME);
+  old.version(1).stores({
+    matches: "id, playedAt, placement, composition, reviewed, primaryMistake",
+    decisions: "id, matchId, type",
+    reviews: "id, &matchId, primaryMistake, updatedAt",
+    trainingGoals: "id, status, startDate",
+  });
+  old.version(2).stores({
+    trainingSessions: "id, type",
+    settings: "&id",
+  });
+  old.version(3).stores({
+    compositionUsage: "compositionKey, usageCount, lastUsedAt",
+  });
+  old.version(4).stores({
+    reviewDrafts: "matchId, updatedAt",
+  });
+  return old;
+}
+
+describe("Dexie v4 -> v5 migration", () => {
+  it("keeps every earlier table, starts empty and stores image bytes", async () => {
+    await Dexie.delete(V5_DB_NAME);
+    const old = openV4();
+    await old.table("matches").bulkPut([
+      v2Match("m-1", "福牛", "2026-10-01T13:00"),
+      v2Match("m-2", "枪手", "2026-10-02T13:00"),
+    ]);
+    await old.table("reviewDrafts").put({
+      matchId: "m-1",
+      input: {},
+      createdAt: "2026-10-01T13:00:00.000Z",
+      updatedAt: "2026-10-01T13:00:00.000Z",
+    });
+    await old.close();
+
+    const upgraded = new TftTrainingDatabase(V5_DB_NAME);
+    await upgraded.open();
+    try {
+      expect(await upgraded.matches.count()).toBe(2);
+      expect(await upgraded.reviewDrafts.count()).toBe(1);
+      expect(await upgraded.screenshots.count()).toBe(0);
+
+      // The row type itself: metadata plus the bytes, one atomic record.
+      await upgraded.screenshots.put({
+        id: "s-1",
+        matchId: "m-1",
+        fileName: "结算.png",
+        mimeType: "image/png",
+        byteSize: PNG_HEADER.length,
+        createdAt: "2026-10-01T13:05:00.000Z",
+        blob: new Blob([new Uint8Array(PNG_HEADER)], { type: "image/png" }),
+      });
+
+      const row = await upgraded.screenshots.get("s-1");
+      expect(row?.fileName).toBe("结算.png");
+      expect([...new Uint8Array(await row!.blob.arrayBuffer())]).toEqual(PNG_HEADER);
+      expect(await upgraded.screenshots.where("matchId").equals("m-1").count()).toBe(1);
     } finally {
       await upgraded.delete();
     }

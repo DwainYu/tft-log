@@ -1,5 +1,10 @@
+import type { ReviewInput } from "./review/review";
+
 /**
  * Core domain types. Storage-agnostic: nothing here knows about Dexie or React.
+ *
+ * `ReviewInput` is imported from the review domain module; it is a type-only
+ * import, so the cycle types.ts <-> review/review.ts costs nothing at runtime.
  *
  * Date convention
  * ---------------
@@ -76,10 +81,19 @@ export interface Match {
   endedAt?: string;
   durationSeconds?: number;
 
-  /** 1 – 8 */
-  placement: number;
+  /**
+   * 最终名次 1 – 8。**可选**：开局或进行中开记录时它还不存在。
+   *
+   * 三态语义（与 `encounterId` 同样的写法）：
+   *  - absent → 还没结果（开局记录、进行中、以及所有早期记录之外的未完成局）；
+   *  - 1–8   → 该局已结算，可参与平均名次 / 前四率 / 吃鸡率 / 名次趋势；
+   *  - 0 从来不是合法值，也永远不会被当成「未填」。
+   */
+  placement?: number;
 
+  /** 结束时的等级，1 – 12。 */
   finalLevel?: number;
+  /** 结束（或被淘汰）时剩余的玩家生命值；不是开局血量，也不是过程中某一时刻的血量。 */
   finalHealth?: number;
   totalGold?: number;
 
@@ -115,6 +129,23 @@ export interface Match {
   /** Opening route; see `OPENING_PLANS`. Absent on every record logged before this field existed. */
   openingPlan?: OpeningPlan;
 
+  /**
+   * Opening encounter of this game — see `EncounterData` and the Set 18
+   * catalog in `data/tft/set18/encounters.json`.
+   *
+   * A *separate dimension* from anything else on this record:
+   *  - `augmentIds` is what the player *picked* (three choices at 2-1 / 3-2 / 4-2);
+   *  - `encounterId` is what the game *rolled* before anyone picked anything,
+   *    and it applies to everyone in the lobby;
+   *  - augment tier combinations are derived information, never stored here.
+   *
+   * Three-way meaning of the value, which is why this is not a boolean:
+   *  - absent  → nobody recorded it yet (every match logged before this field);
+   *  - the catalog's `isNone` id → the game genuinely had no encounter;
+   *  - any other id → that encounter happened.
+   */
+  encounterId?: string;
+
   createdAt: string;
   updatedAt: string;
 }
@@ -141,6 +172,29 @@ export interface Decision {
 
 export const DECISION_HINDSIGHTS = ["correct", "wrong", "mixed"] as const;
 export type DecisionHindsight = (typeof DECISION_HINDSIGHTS)[number];
+
+/**
+ * An unfinished 复盘 — what the player had typed when they walked away.
+ *
+ * Kept in its own table rather than written into `Review` for one reason: a
+ * review row means "this match has been reviewed", and `match.reviewed` plus
+ * every statistic derive from it. A half-typed conclusion must never be able
+ * to look like the real thing, so it lives here until it is complete.
+ *
+ * One row per match (`matchId` is the primary key). Completing a 复盘 moves
+ * the answers into `Review` and deletes the draft, so the two states are
+ * mutually exclusive by construction.
+ */
+export interface ReviewDraft {
+  matchId: string;
+  input: ReviewInput;
+  /** Alongside `input` because the form carries it too — see `Review.openingPlan`. */
+  openingPlan?: OpeningPlan;
+  /** Owning session, captured so the drafts page can show where it belongs. */
+  sessionId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Review {
   id: string;
@@ -241,6 +295,12 @@ export interface DatabaseSnapshot {
   reviews: Review[];
   trainingGoals: TrainingGoal[];
   trainingSessions: TrainingSession[];
+  /**
+   * Which slice of the database this file holds. Absent on every backup made
+   * before Session-scoped export existed — those are full backups, so an
+   * absent value means `all`. Optional so old files stay valid.
+   */
+  scope?: "all" | "competition" | "daily";
 }
 
 /**

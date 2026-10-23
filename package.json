@@ -1,13 +1,13 @@
 {
-  "name": "tft-training-log",
+  "name": "tft-log",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "S18 Teamfight Tactics personal training, review and statistics system.",
+  "description": "TFT Log (TFT 日志) — Set 18 TFT personal match log, training review and statistics system.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DwainYu/tft-training-log.git"
+    "url": "git+https://github.com/DwainYu/tft-log.git"
   },
   "scripts": {
     "dev": "cross-env NODE_ENV=development vite",

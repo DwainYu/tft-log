@@ -55,7 +55,7 @@ describe("Quick Add", () => {
   it("requires a placement before saving", async () => {
     renderDialog();
     fireEvent.click(screen.getByRole("button", { name: /^保存$/ }));
-    expect(await screen.findByText("请先选择名次")).toBeInTheDocument();
+    expect(await screen.findByText("赛后结算请先选择名次（快捷键 1 – 8）")).toBeInTheDocument();
     expect(await allMatches()).toHaveLength(0);
   });
 
@@ -76,7 +76,7 @@ describe("Quick Add", () => {
     fireEvent.change(screen.getByLabelText("下一局训练重点"), {
       target: { value: "4-1 前不 D 超过 30 金" },
     });
-    fireEvent.change(screen.getByLabelText("对局时间"), {
+    fireEvent.change(screen.getByLabelText("对局结束时间"), {
       target: { value: "2026-02-05T13:20" },
     });
 
@@ -112,7 +112,7 @@ describe("Quick Add", () => {
 
   it("keeps the date/time field and shows no training-window warning", () => {
     renderDialog();
-    expect(screen.getByLabelText("对局时间")).toBeInTheDocument();
+    expect(screen.getByLabelText("对局结束时间")).toBeInTheDocument();
     expect(screen.queryByText(/训练时段/)).not.toBeInTheDocument();
     expect(screen.queryByText(/12:00/)).not.toBeInTheDocument();
   });
@@ -130,7 +130,7 @@ describe("Quick Add", () => {
     ]) {
       const view = renderDialog();
       fireEvent.click(screen.getByRole("radio", { name: "第 1 名" }));
-      fireEvent.change(screen.getByLabelText("对局时间"), { target: { value: playedAt } });
+      fireEvent.change(screen.getByLabelText("对局结束时间"), { target: { value: playedAt } });
 
       expect(screen.queryByText(/训练时段/)).not.toBeInTheDocument();
 
@@ -220,42 +220,83 @@ describe("Quick Add", () => {
 
     timeControl.now = "2026-02-05T10:27";
     rerenderDialog(view);
-    expect(screen.getByLabelText("对局时间")).toHaveValue("2026-02-05T10:27");
+    expect(screen.getByLabelText("对局结束时间")).toHaveValue("2026-02-05T10:27");
   });
 
   it("re-seeds the time on every fresh open after a cancel", () => {
     timeControl.now = "2026-02-05T10:27";
     const onClose = vi.fn();
     const view = renderDialog(onClose);
-    expect(screen.getByLabelText("对局时间")).toHaveValue("2026-02-05T10:27");
+    expect(screen.getByLabelText("对局结束时间")).toHaveValue("2026-02-05T10:27");
 
     rerenderDialog(view, onClose, false);
     timeControl.now = "2026-02-05T10:42";
     rerenderDialog(view, onClose);
-    expect(screen.getByLabelText("对局时间")).toHaveValue("2026-02-05T10:42");
+    expect(screen.getByLabelText("对局结束时间")).toHaveValue("2026-02-05T10:42");
   });
 
   it("does not overwrite a manually edited time while the dialog is open", () => {
     timeControl.now = "2026-02-05T10:27";
     const view = renderDialog();
 
-    fireEvent.change(screen.getByLabelText("对局时间"), {
+    fireEvent.change(screen.getByLabelText("对局结束时间"), {
       target: { value: "2026-02-05T10:15" },
     });
 
     // ordinary re-renders (state updates, parent re-render) must not reset it
     rerenderDialog(view, () => undefined);
-    expect(screen.getByLabelText("对局时间")).toHaveValue("2026-02-05T10:15");
+    expect(screen.getByLabelText("对局结束时间")).toHaveValue("2026-02-05T10:15");
   });
 
   it("rolls the seeded time across midnight without a day offset", () => {
     timeControl.now = "2026-02-05T23:59";
     const view = renderDialog();
-    expect(screen.getByLabelText("对局时间")).toHaveValue("2026-02-05T23:59");
+    expect(screen.getByLabelText("对局结束时间")).toHaveValue("2026-02-05T23:59");
 
     rerenderDialog(view, () => undefined, false);
     timeControl.now = "2026-02-06T00:03";
     rerenderDialog(view);
-    expect(screen.getByLabelText("对局时间")).toHaveValue("2026-02-06T00:03");
+    expect(screen.getByLabelText("对局结束时间")).toHaveValue("2026-02-06T00:03");
+  });
+  it("saves an opening record without a placement, and the value stays undefined — not 0", async () => {
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "开局记录" }));
+
+    fireEvent.change(screen.getByLabelText("开局事件（选填）"), {
+      target: { value: "SET18_ENC_TWO_COST_START" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^保存$/ }));
+
+    await waitFor(async () => expect(await allMatches()).toHaveLength(1));
+    const [match] = await allMatches();
+    expect(match.placement).toBeUndefined();
+    expect(match.encounterId).toBe("SET18_ENC_TWO_COST_START");
+    // 开局时刻这一刻是开始时间，不是结束时间
+    expect(match.startedAt).toBe(match.playedAt);
+    expect(match.endedAt).toBeUndefined();
+  });
+
+  it("never carries the encounter into 保存并再记一局 or 复制上一局", async () => {
+    renderDialog();
+    // settle one game with an encounter picked
+    fireEvent.click(screen.getByRole("radio", { name: "第 5 名" }));
+    fireEvent.change(screen.getByLabelText("开局事件（选填）"), {
+      target: { value: "SET18_ENC_TWO_COST_START" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^保存并再记一局$/ }));
+
+    await waitFor(async () => expect(await allMatches()).toHaveLength(1));
+    expect(screen.getByLabelText("开局事件（选填）")).toHaveValue("");
+    // the dialog stays open: the next save is game #2 and must not inherit it
+    fireEvent.click(screen.getByRole("radio", { name: "第 2 名" }));
+    fireEvent.click(screen.getByRole("button", { name: /^保存$/ }));
+    await waitFor(async () => expect(await allMatches()).toHaveLength(2));
+    // table order is by primary key (a random uuid), so find the second game
+    const second = (await allMatches()).find((m) => m.placement === 2);
+    expect(second?.encounterId).toBeUndefined();
+
+    // 复制上一局 copies comp/augments/items — never the rolled encounter
+    fireEvent.click(screen.getByRole("button", { name: "复制上一局" }));
+    expect(screen.getByLabelText("开局事件（选填）")).toHaveValue("");
   });
 });

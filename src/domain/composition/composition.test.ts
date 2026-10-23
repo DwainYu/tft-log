@@ -38,7 +38,12 @@ describe("normalizeCompositionKey", () => {
 });
 
 describe("summarizeCompositionUsage", () => {
-  const m = (composition: string | undefined, playedAt: string) => ({ composition, playedAt });
+  // 使用统计只认已结算的局（见 summarize 的过滤），fixture 默认带名次
+  const m = (composition: string | undefined, playedAt: string, placement = 3) => ({
+    composition,
+    playedAt,
+    placement,
+  });
 
   it("counts one row per normalized key", () => {
     const rows = summarizeCompositionUsage([
@@ -55,6 +60,15 @@ describe("summarizeCompositionUsage", () => {
 
   it("skips missing and blank compositions", () => {
     expect(summarizeCompositionUsage([m(undefined, "2026-02-01T13:00"), m("   ", "2026-02-01T13:00")])).toEqual([]);
+  });
+
+  it("skips matches without a result — 开局的计划阵容不算使用过", () => {
+    const rows = summarizeCompositionUsage([
+      { composition: "法师", playedAt: "2026-02-01T13:00", placement: undefined }, // 开局就建，还没结算
+      m("法师", "2026-02-02T14:00"), // 已结算
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].usageCount).toBe(1);
   });
 
   it("spans first and last usage from playedAt", () => {

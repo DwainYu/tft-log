@@ -1,5 +1,7 @@
 import { RotateCcw, Search } from "lucide-react";
 import { MISTAKE_TYPE_LIST, mistakeLabel } from "../../domain/labels";
+import { encounterLabel } from "./EncounterSelector";
+import { encounterRepository } from "../../data/tft/repositories";
 import type { MatchQuery, PlacementFilter, ReviewedFilter, SortDir, SortField } from "../../domain/match/query";
 import { Button } from "../ui/Button";
 import { Field, Input, Select } from "../ui/Field";
@@ -42,7 +44,9 @@ export function MatchFilters({
     (query.placement ?? "all") !== "all" ||
     (query.reviewed ?? "all") !== "all" ||
     (query.composition ?? "all") !== "all" ||
-    (query.mistake ?? "all") !== "all";
+    (query.mistake ?? "all") !== "all" ||
+    (query.encounterId ?? "all") !== "all";
+  const encounters = encounterRepository.getEncounters();
 
   return (
     <div className="flex flex-col gap-3 p-4">
@@ -119,6 +123,33 @@ export function MatchFilters({
                 {mistakeLabel(t)}
               </option>
             ))}
+          </Select>
+        </Field>
+
+        <Field label="开局事件" htmlFor="mq-encounter">
+          <Select
+            id="mq-encounter"
+            value={query.encounterId ?? "all"}
+            onChange={(e) => onChange({ encounterId: e.target.value })}
+          >
+            <option value="all">全部开局事件</option>
+            <option value="none">未记录开局事件</option>
+            {encounters
+              .filter((e) => e.isNone)
+              .map((e) => (
+                <option key={e.id} value={e.id}>
+                  {encounterLabel(e)}
+                </option>
+              ))}
+            <optgroup label="赛季开局事件">
+              {encounters
+                .filter((e) => !e.isNone)
+                .map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {encounterLabel(e)}
+                  </option>
+                ))}
+            </optgroup>
           </Select>
         </Field>
 

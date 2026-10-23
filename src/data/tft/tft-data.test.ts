@@ -167,6 +167,10 @@ function validFixture(): TftDataSnapshot {
       },
     ],
     augments: [{ id: "a1", name: "大百宝袋", set: 18, description: "" }],
+    encounters: [
+      { id: "e1", name: "纹章合奏", englishName: "Emblem Ensemble", description: "开局获得 3 个随机纹章。", set: 18, championId: "c1", isNone: false },
+      { id: "e-none", name: "无开局事件", englishName: "No Encounter", description: "本局没有开局事件。", set: 18, isNone: true },
+    ],
   };
 }
 

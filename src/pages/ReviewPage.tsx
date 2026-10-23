@@ -2,17 +2,19 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useLiveQuery } from "dexie-react-hooks";
 import { ChevronLeft, ListChecks } from "lucide-react";
-import { deleteReview, saveReview } from "../services/review-service";
+import { deleteReview, deleteReviewDraft, getReviewDraft, saveReview } from "../services/review-service";
 import { getMatchBundle } from "../services/match-service";
 import type { ReviewInput } from "../domain/review/review";
 import type { OpeningPlan } from "../domain/types";
-import { mistakeLabel } from "../domain/labels";
+import { mistakeLabel, openingPlanLabel } from "../domain/labels";
+import { encounterNameOrId } from "../components/matches/EncounterSelector";
 import {
   durationOf,
   isBottom4,
   isTop4,
   isWin,
   placementTone,
+  placementText,
 } from "../domain/match/match";
 import { buildTimeline } from "../domain/decision/timeline";
 import { errorMessage, ValidationError } from "../lib/errors";
@@ -31,6 +33,8 @@ const PLACEMENT_TONE_CLASS = {
   gold: "text-gold-300",
   good: "text-good",
   bad: "text-bad",
+  // 还没结算的对局：不涂色，也不该看起来像打崩了。
+  muted: "text-ink-600",
 } as const;
 
 export function ReviewPage() {
@@ -42,8 +46,13 @@ export function ReviewPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const bundle = useLiveQuery(() => getMatchBundle(id), [id]);
+  // Resolved *before* the form mounts: `ReviewForm` seeds its state from the
+  // draft on first render, so it must already know whether one exists. `null`
+  // means "loaded and there is none" — `undefined` would be indistinguishable
+  // from "still loading" and would pin the page on the spinner forever.
+  const draft = useLiveQuery(() => getReviewDraft(id).then((d) => d ?? null), [id]);
 
-  if (bundle === undefined) return <Spinner label="读取复盘" />;
+  if (bundle === undefined || draft === undefined) return <Spinner label="读取复盘" />;
   if (bundle === null) {
     return (
       <>
@@ -73,6 +82,9 @@ export function ReviewPage() {
     setErrors([]);
     try {
       await saveReview(match.id, input, openingPlan);
+      // The 复盘 is now the real record; its draft must not linger, or this
+      // match would show up in the drafts box next to the finished write-up.
+      await deleteReviewDraft(match.id);
       toast.push("复盘已保存 · 这局标记为已复盘");
       navigate(`/matches/${match.id}`);
     } catch (err) {
@@ -113,8 +125,10 @@ export function ReviewPage() {
             <div
               className={`num text-4xl font-semibold leading-none ${PLACEMENT_TONE_CLASS[tone]}`}
             >
-              {match.placement}
-              <span className="ml-1 text-sm font-normal text-ink-400">名</span>
+              {match.placement ?? "—"}
+              <span className="ml-1 text-sm font-normal text-ink-400">
+                {match.placement === undefined ? "未记录名次" : "名"}
+              </span>
             </div>
             <div className="flex flex-col gap-1.5">
               <div className="flex flex-wrap items-center gap-1.5">
@@ -151,10 +165,13 @@ export function ReviewPage() {
           // Remount per match: the form seeds its state once, so without this
           // a direct jump to another game's review would keep the old answers.
           key={match.id}
+          matchId={match.id}
           initial={review}
           initialOpeningPlan={match.openingPlan}
           errors={errors}
           busy={busy}
+          draft={draft ?? undefined}
+          hasDraft={draft !== undefined}
           onSave={onSubmit}
           onDiscard={() => navigate(`/matches/${match.id}`)}
         />
@@ -165,10 +182,12 @@ export function ReviewPage() {
             <dl className="flex flex-col gap-2 p-4">
               <SideFact label="阵容" value={match.composition} />
               <SideFact label="等级" value={match.finalLevel?.toString()} />
-              <SideFact label="血量" value={match.finalHealth?.toString()} />
+              <SideFact label="结束时剩余血量" value={match.finalHealth?.toString()} />
               <SideFact label="核心棋子" value={match.coreUnits?.join(" / ")} />
               <SideFact label="核心装备" value={match.coreItems?.join(" / ")} />
               <SideFact label="强化符文" value={match.augments?.join(" / ")} />
+              <SideFact label="开局事件" value={encounterNameOrId(match.encounterId)} />
+              <SideFact label="开局路线" value={openingPlanLabel(match.openingPlan)} />
             </dl>
           </Panel>
 
@@ -231,7 +250,7 @@ export function ReviewPage() {
         }
       >
         <p className="text-sm text-ink-200">
-          第 {match.placement} 名 · {match.playedAt.slice(0, 10)} ·{" "}
+          {placementText(match.placement)} · {match.playedAt.slice(0, 10)} ·{" "}
           {match.composition ?? "未填阵容"}
         </p>
       </Modal>

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, type ReactElement } from "react";
 import {
   CartesianGrid,
   Line,
@@ -8,6 +8,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type CartesianGridProps,
   type TooltipContentProps,
 } from "recharts";
 import { chartTheme, MIN_SAMPLES } from "./chart-theme";
@@ -20,13 +21,44 @@ export interface TrendPoint {
   label: string;
   /** Full wall-clock stamp, so the tooltip can name one exact game. */
   playedAt: string;
-  placement: number;
+  /** 可选：没有名次的记录不画点（见 `placementTrendSeries`）。 */
+  placement?: number;
   top4: 0 | 1;
   /** The player's own composition label for this game, when logged. */
   composition?: string;
   /** Drill-down target: a point always belongs to exactly one match. */
   id: string;
 }
+
+type GridLineProps = Parameters<
+  Extract<NonNullable<CartesianGridProps["horizontal"]>, (props: never) => ReactElement>
+>[0];
+
+// The rank-1 gridline lands exactly on the plot area's top edge, where it
+// reads as a stray border above the axis rather than a ranking reference.
+// Draw every other tick line as Recharts would, and skip only that one.
+const horizontalGridLine = (props: GridLineProps) => {
+  const { x1, y1, x2, y2, offset, stroke, strokeWidth, strokeOpacity, strokeDasharray } = props;
+  if (Math.abs(y1 - offset.top) < 0.5) return <g />;
+  return (
+    <line
+      x1={x1}
+      y1={y1}
+      x2={x2}
+      y2={y2}
+      fill="none"
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeOpacity={strokeOpacity}
+      // Recharts allows readonly arrays; the DOM attribute wants a joined string.
+      strokeDasharray={
+        typeof strokeDasharray === "string" || strokeDasharray == null
+          ? strokeDasharray
+          : String(strokeDasharray)
+      }
+    />
+  );
+};
 
 /**
  * Rank trend, 1st place on top; the dashed reference line is the window average.
@@ -78,7 +110,7 @@ export function PlacementTrendChart({
           第 {point.index} 局 · {point.label}
           {time ? ` ${time}` : ""}
         </div>
-        <div>名次：第 {point.placement} 名</div>
+        <div>名次：{point.placement === undefined ? "未记录" : `第 ${point.placement} 名`}</div>
         <div className="max-w-[11rem] break-words">阵容：{point.composition || "未填阵容"}</div>
       </div>
     );
@@ -90,7 +122,7 @@ export function PlacementTrendChart({
     <div className="h-48 w-full sm:h-56 lg:h-64">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-          <CartesianGrid stroke={t.CHART.grid} vertical={false} />
+          <CartesianGrid stroke={t.CHART.grid} vertical={false} horizontal={horizontalGridLine} />
           <XAxis
             dataKey="index"
             // Several games land on the same day. A date is only labelled on
@@ -145,7 +177,11 @@ export function PlacementTrendChart({
             strokeWidth={2}
             dot={(props: { cx?: number; cy?: number; payload?: TrendPoint }) => {
               const { cx, cy, payload } = props;
-              if (cx == null || cy == null || !payload) return null;
+              // 没有名次的记录不是赛果，画上去也是个落在轴外的点：不画，
+              // 也就不会出现「点它跳到哪一局」这种二义。
+              if (cx == null || cy == null || !payload || payload.placement === undefined) {
+                return null;
+              }
               const top4 = payload.top4 === 1;
               const title = `${payload.label} ${payload.playedAt.slice(11, 16)} · 第 ${payload.placement} 名 · 阵容：${payload.composition || "未填阵容"}${top4 ? " · Top4" : ""}`;
               const shared = {
@@ -175,7 +211,17 @@ export function PlacementTrendChart({
                 </circle>
               );
             }}
-            activeDot={{ r: 5, fill: t.CHART_SEMANTIC.highlight, stroke: t.CHART.surface, strokeWidth: 2 }}
+            // 悬停高亮点（r=5）和可点击圆点（r=4）是同心的，而 recharts 把
+            // activeDot 画在更高一层：它默认吃指针事件，于是鼠标永远点不到
+            // 下面的圆点 —— 跳转看着像坏了，其实是这一层挡住了。关掉它自己的
+            // 指针事件，高亮照旧显示，命中测试落到真正带 onClick 的圆点上。
+            activeDot={{
+              r: 5,
+              fill: t.CHART_SEMANTIC.highlight,
+              stroke: t.CHART.surface,
+              strokeWidth: 2,
+              pointerEvents: "none",
+            }}
             isAnimationActive={false}
           />
         </LineChart>

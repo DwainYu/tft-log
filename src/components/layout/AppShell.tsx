@@ -5,6 +5,7 @@ import {
   CalendarRange,
   ClipboardList,
   Database,
+  FileClock,
   Globe,
   LayoutDashboard,
   Menu,
@@ -26,6 +27,7 @@ const NAV: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
   { to: "/data-center", label: "资料中心", icon: Globe },
   { to: "/goals", label: "训练目标", icon: Target },
   { to: "/weekly", label: "周复盘", icon: CalendarRange },
+  { to: "/drafts", label: "草稿箱", icon: FileClock },
   { to: "/data", label: "数据", icon: Database },
 ];
 
@@ -154,8 +156,8 @@ function Brand() {
         className="size-8 shrink-0"
       />
       <div className="leading-tight">
-        <div className="text-sm font-semibold tracking-wide text-ink-50">TFT 弈记</div>
-        <div className="text-[10px] tracking-[0.16em] text-ink-600">TFT 对局记录与复盘</div>
+        <div className="text-sm font-semibold tracking-wide text-ink-50">TFT 日志</div>
+        <div className="text-[10px] tracking-[0.16em] text-ink-600">对局记录与训练分析</div>
       </div>
     </div>
   );
