@@ -33,9 +33,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     // `alive` guard: the bootstrap promise can settle after the tree is gone
     // (React would then schedule an update into a torn-down environment).
     let alive = true;
-    void ensureDefaultSessions().then(() => {
-      if (alive) setBooted(true);
-    });
+    // A blocked IndexedDB must not leave an unhandled rejection: booting
+    // anyway, the page-level queries surface their own read state.
+    ensureDefaultSessions()
+      .catch(() => undefined)
+      .then(() => {
+        if (alive) setBooted(true);
+      });
     return () => {
       alive = false;
     };

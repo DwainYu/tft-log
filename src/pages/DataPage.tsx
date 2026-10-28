@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Database, Download, FileJson, Plus, Sparkles, Trash2, Upload } from "lucide-react";
+import { ClipboardCopy, Database, Download, FileJson, Plus, Sparkles, Trash2, Upload } from "lucide-react";
 import {
   buildScopedExport,
+  buildSnapshot,
+  copyText,
   decisionsToCsv,
   downloadText,
   EXPORT_SCOPE_LABELS,
@@ -69,6 +71,7 @@ export function DataPage() {
   const [draft, setDraft] = useState<SessionDraft>(emptyDraft);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [scope, setScope] = useState<ExportScope>("all");
+  const [backupText, setBackupText] = useState<string | null>(null);
 
   if (counts === undefined) return <Spinner label="读取存储" />;
   const total = counts.matches + counts.decisions + counts.reviews + counts.trainingGoals;
@@ -121,6 +124,28 @@ export function DataPage() {
     }
   }
 
+  /**
+   * Embedded contexts (sandboxed iframes) can silently block blob downloads;
+   * a copy path keeps the backup escape hatch working. If even the clipboard
+   * refuses, the text goes into a selectable dialog instead of vanishing.
+   */
+  async function onCopyBackup() {
+    setBusy(true);
+    try {
+      const snapshot = await buildSnapshot();
+      const json = JSON.stringify(snapshot, null, 2);
+      if (await copyText(json)) {
+        toast.push("备份已复制到剪贴板，粘贴到文件即可保存");
+      } else {
+        setBackupText(json);
+      }
+    } catch (err) {
+      toast.push(errorMessage(err), "warn");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -155,9 +180,14 @@ export function DataPage() {
 
   async function onClearDemo() {
     setBusy(true);
-    const removed = await removeDemoData();
-    setBusy(false);
-    toast.push(removed > 0 ? `已清除 ${removed} 条示例数据（真实数据保留）` : "没有示例数据");
+    try {
+      const removed = await removeDemoData();
+      toast.push(removed > 0 ? `已清除 ${removed} 条示例数据（真实数据保留）` : "没有示例数据");
+    } catch (err) {
+      toast.push(errorMessage(err), "warn");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function onSetActive(id: string) {
@@ -322,6 +352,10 @@ export function DataPage() {
                 <Download size={15} />
                 Export CSV · {EXPORT_SCOPE_LABELS[scope]}
               </Button>
+              <Button variant="ghost" onClick={onCopyBackup} disabled={busy || total === 0}>
+                <ClipboardCopy size={15} />
+                复制备份（下载被拦截时用）
+              </Button>
               <p className="text-[11px] leading-relaxed text-ink-600">
                 JSON 包含 matches / decisions / reviews / trainingGoals / trainingSessions 五张表，
                 与本页导入格式一致，可以跨浏览器迁移或作为备份。训练目标是全局的，不按 Session
@@ -334,7 +368,7 @@ export function DataPage() {
           </Panel>
 
           <Panel>
-            <PanelHeader title="导入" subtitle="合并导入：同 id 记录覆盖，新记录追加，不删除本地数据" />
+            <PanelHeader title="导入" subtitle="合并导入：同 id 记录以文件内容覆盖（不比较新旧），新记录追加" />
             <div className="flex flex-col gap-2 p-4">
               <input ref={fileRef} type="file" accept=".json,application/json" onChange={onFile} className="hidden" id="import-json" />
               <Button onClick={() => fileRef.current?.click()} disabled={busy}>
@@ -342,7 +376,8 @@ export function DataPage() {
                 Import JSON
               </Button>
               <p className="text-[11px] leading-relaxed text-ink-600">
-                选择之前导出的 JSON 文件。导入采用合并策略，旧备份不会毁掉新数据。
+                选择之前导出的 JSON 文件。导入采用合并策略：文件里的同 id 记录会直接替换本地那一条 ——
+                重放旧备份会把本地更新过的记录倒写回去，想保住现状请先导出现状。
                 对局缺少 sessionId 或引用了未知 Session 时，会归入「日常训练」。
               </p>
             </div>
@@ -541,10 +576,15 @@ export function DataPage() {
               variant="danger"
               onClick={async () => {
                 setBusy(true);
-                await wipeAll();
-                setBusy(false);
-                setConfirmWipe(false);
-                toast.push("全部数据已清空");
+                try {
+                  await wipeAll();
+                  setConfirmWipe(false);
+                  toast.push("全部数据已清空");
+                } catch (err) {
+                  toast.push(errorMessage(err), "warn");
+                } finally {
+                  setBusy(false);
+                }
               }}
             >
               确认清空
@@ -580,6 +620,27 @@ export function DataPage() {
         <p className="text-sm text-ink-200">
           {(sessions ?? []).find((s) => s.id === confirmDeleteId)?.name ?? confirmDeleteId}
         </p>
+      </Modal>
+
+      <Modal
+        open={backupText !== null}
+        onClose={() => setBackupText(null)}
+        title="备份内容"
+        subtitle="浏览器拒绝了复制，请长按全选下面的文本手动复制保存"
+        footer={
+          <Button variant="primary" onClick={() => setBackupText(null)}>
+            关闭
+          </Button>
+        }
+      >
+        <textarea
+          readOnly
+          aria-label="备份 JSON 文本"
+          value={backupText ?? ""}
+          onFocus={(e) => e.target.select()}
+          rows={10}
+          className="w-full rounded-lg border border-line bg-base-900 p-3 text-[11px] leading-relaxed text-ink-200"
+        />
       </Modal>
     </>
   );
