@@ -69,6 +69,28 @@ describe("TFT sites catalog (Data Center V2)", () => {
     expect(getSiteById("non-existent")).toBeUndefined();
   });
 
+  it("provides verified remote favicons only for sites with a real brand icon", () => {
+    const expectedDomains: Record<string, string> = {
+      "tft-flow": "tftflow.com",
+      tftraits: "tftraits.com",
+      "little-buddy-bot": "littlebuddybot.com",
+      "tft-academy": "tftacademy.com",
+      "data-tft": "datatft.com",
+    };
+
+    for (const site of TFT_SITES) {
+      const expected = expectedDomains[site.id];
+      if (expected) {
+        expect(site.faviconUrl).toBe(`https://a.favicon.im/${expected}?larger=true`);
+      } else {
+        // TFTClarity's favicon service returns a generic placeholder, not a
+        // brand icon, so it must keep the letter badge fallback.
+        expect(site.faviconUrl).toBeUndefined();
+      }
+    }
+    expect(Object.keys(expectedDomains)).toHaveLength(5);
+  });
+
   it("never claims Little Buddy Bot has a search box or a charm section", () => {
     const site = getSiteById("little-buddy-bot")!;
     const text = [

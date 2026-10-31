@@ -50,6 +50,7 @@ export interface TftSite {
   name: string;
   shortName: string;
   url: string;
+  faviconUrl?: string;
   category: SiteCategory;
   categoryLabel: string;
   tagline: string;
@@ -77,6 +78,7 @@ export const TFT_SITES: TftSite[] = [
     name: "TFT Flow",
     shortName: "TF",
     url: "https://tftflow.com/",
+    faviconUrl: "https://a.favicon.im/tftflow.com?larger=true",
     category: "comps-strategy",
     categoryLabel: "阵容选择与攻略",
     tagline: "不只是查看阵容，更关注如何根据装备、海克斯和对局情况灵活选择阵容。",
@@ -133,6 +135,7 @@ export const TFT_SITES: TftSite[] = [
     name: "TFTraits",
     shortName: "TT",
     url: "https://tftraits.com/",
+    faviconUrl: "https://a.favicon.im/tftraits.com?larger=true",
     category: "board-calc",
     categoryLabel: "棋盘模拟与战斗计算",
     tagline: "在棋盘上摆出双方阵容，观察开局寻路与目标锁定，并用独立计算器查看输出和承伤。",
@@ -192,6 +195,7 @@ export const TFT_SITES: TftSite[] = [
     name: "Little Buddy Bot",
     shortName: "LB",
     url: "https://www.littlebuddybot.com/",
+    faviconUrl: "https://a.favicon.im/littlebuddybot.com?larger=true",
     category: "mechanics-loot",
     categoryLabel: "游戏机制与特殊奖励",
     tagline: "查询云顶对局中的特殊机制、奖励和游戏内容，补充普通阵容网站不容易找到的信息。",
@@ -251,6 +255,7 @@ export const TFT_SITES: TftSite[] = [
     name: "TFT Academy",
     shortName: "TA",
     url: "https://tftacademy.com/tierlist/comps",
+    faviconUrl: "https://a.favicon.im/tftacademy.com?larger=true",
     category: "comps-strategy",
     categoryLabel: "阵容选择与攻略",
     tagline: "查看阵容与海克斯评级，结合攻略理解阵容构筑和运营思路。",
@@ -368,6 +373,7 @@ export const TFT_SITES: TftSite[] = [
     name: "DataTFT",
     shortName: "DT",
     url: "https://www.datatft.com/explorer",
+    faviconUrl: "https://a.favicon.im/datatft.com?larger=true",
     category: "data-explorer",
     categoryLabel: "综合数据探索",
     tagline: "国内综合性较强的 TFT 数据网站，适合进行多维度的数据查询与探索。",
