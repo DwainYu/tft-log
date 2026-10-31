@@ -14,13 +14,12 @@ describe("App shell", () => {
     }
   });
 
-  it("offers exactly one place to record a match", () => {
+  it("does not duplicate the match add button in the sidebar or shell", () => {
     render(<App />);
-    // The sidebar owns every 记录对局 entry (快速记录一局 + 完整对局记录);
-    // a second copy used to sit in the Dashboard header. The Icon-only compact
-    // button (mobile) and the full one (desktop) both live in the shell.
-    expect(screen.getAllByLabelText("快速记录一局").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("快速记录一局").length).toBeGreaterThanOrEqual(1);
+    // Per AGENTS.md rules: the AddMatchButton is placed on the Matches page header,
+    // not duplicated in the sidebar or top shell.
+    expect(screen.queryByLabelText("快速记录一局")).not.toBeInTheDocument();
+    expect(screen.queryByText("快速记录一局")).not.toBeInTheDocument();
   });
 
   it("no longer advertises a fixed training window in the sidebar", () => {

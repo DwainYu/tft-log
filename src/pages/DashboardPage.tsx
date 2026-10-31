@@ -37,7 +37,7 @@ const WINDOW = 10;
 export function DashboardPage() {
   const navigate = useNavigate();
   const [demoLoading, setDemoLoading] = useState(false);
-  const { sessions, activeSession, activeSessionId, ready } = useSession();
+  const { activeSession, activeSessionId, ready } = useSession();
   // Every statistic below is scoped to the active session; "all sessions"
   // stays available on the Matches / Statistics pages.
   const overall = useLiveQuery(() => allOverall(activeSessionId), [activeSessionId, ready]);
@@ -69,17 +69,13 @@ export function DashboardPage() {
   const goal = goals?.[0];
   const unreviewed = overall.games - overall.reviewedGames;
   const sessionSubtitle = activeSession
-    ? `${activeSession.name}${activeSession.endDate ? `（${activeSession.startDate} – ${activeSession.endDate}）` : " · 持续进行"}`
+    ? `${activeSession.name}${activeSession.endDate ? `（${activeSession.startDate} – ${activeSession.endDate}）` : ""}`
     : "日常训练";
 
-  // No record button up here on purpose: the sidebar already offers both ways
-  // in (快速记录一局 opens the dialog, 完整对局记录 opens the form) from every
-  // page, so a second copy here was pure duplication. The empty state below
-  // keeps its own call to action because that one is onboarding, not a shortcut.
   const header = (
     <PageHeader
       title="训练状态"
-      subtitle={`${sessionSubtitle} · ${sessions.length > 0 ? "按当前训练统计" : "数据全部保存在本机"}`}
+      subtitle={sessionSubtitle}
     />
   );
 
@@ -90,7 +86,7 @@ export function DashboardPage() {
         <Panel>
           <EmptyState
             title="这个训练下还没有记录对局"
-            description="从左侧的「快速记录一局」20 秒记完一局，或用「完整对局记录」填写更多细节。记录第一局后，这里会开始显示训练趋势。"
+            description="记录第一局后，这里会开始显示训练趋势。"
             action={
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <LinkButton to="/matches/new" variant="primary">
@@ -211,7 +207,7 @@ export function DashboardPage() {
         <Panel className="lg:col-span-2">
           <PanelHeader
             title="最近名次趋势"
-            subtitle={`近 ${WINDOW} 场 · 蓝点为 Top4 · 点击圆点打开该局`}
+            subtitle={`近 ${WINDOW} 场 · 蓝点为 Top4`}
           />
           <div className="p-4">
             <PlacementTrendChart
@@ -223,10 +219,7 @@ export function DashboardPage() {
         </Panel>
 
         <Panel>
-          <PanelHeader
-            title="主要问题"
-            subtitle="Primary Mistake · 点击柱子查看这几局"
-          />
+          <PanelHeader title="主要问题" />
           {mistakesUnclassifiedOnly ? (
             <div className="flex flex-col items-start gap-2 p-4">
               <p className="text-xs leading-relaxed text-ink-400">
@@ -265,7 +258,7 @@ export function DashboardPage() {
         <Panel className="lg:col-span-2">
           <PanelHeader
             title="阵容表现"
-            subtitle="按你记录的阵容名统计（羁绊单独记录，不计入这里）"
+            subtitle="按记录的阵容名统计（羁绊单独记录）"
           />
           <StatTable
             columns={compositionColumns}
@@ -333,7 +326,6 @@ export function DashboardPage() {
       <Panel className="mt-4">
         <PanelHeader
           title="最近对局"
-          subtitle={`最新 ${Math.min(recent.length, 8)} 局 · ${activeSession?.name ?? "日常训练"}`}
           action={
             <div className="flex items-center gap-2">
               {unreviewed > 0 && (

@@ -264,7 +264,7 @@ export function DataPage() {
 
   return (
     <>
-      <PageHeader title="数据" subtitle="数据 100% 保存在这台电脑的浏览器里 —— 随时可以带走" />
+      <PageHeader title="数据" />
 
       <div className="flex flex-col gap-4">
         <Panel>
@@ -272,7 +272,7 @@ export function DataPage() {
             title="存储概况"
             action={
               <Badge tone="muted">
-                <Database size={12} /> IndexedDB · 本机
+                <Database size={12} /> 本机存储
               </Badge>
             }
           />
@@ -286,9 +286,8 @@ export function DataPage() {
           </div>
           {counts.screenshots > 0 && (
             <div className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3">
-              <span className="text-[11px] leading-relaxed text-ink-600">
-                截图保存在本机 IndexedDB，<strong className="text-ink-200">不会</strong>
-                写进下面的 JSON / CSV 备份。换机器或清理浏览器数据前请先手动处理。
+              <span className="text-xs leading-relaxed text-ink-400">
+                截图保存在本机，不包含在 JSON / CSV 备份文件中。
               </span>
               <Button
                 size="sm"
@@ -320,7 +319,7 @@ export function DataPage() {
 
         <div className="grid gap-4 lg:grid-cols-2">
           <Panel>
-            <PanelHeader title="导出" subtitle="先选范围，再导出 JSON（备份）或 CSV（表格）" />
+            <PanelHeader title="导出" />
             <div className="flex flex-col gap-2 p-4">
               <Field label="导出范围" htmlFor="ex-scope">
                 <Select
@@ -336,7 +335,7 @@ export function DataPage() {
                 </Select>
               </Field>
 
-              <p className="text-[11px] leading-relaxed text-ink-600">
+              <p className="text-xs leading-relaxed text-ink-400">
                 {scope === "all"
                   ? "完整备份：所有 Session、对局、决策、复盘和训练目标，导入后可完整还原。"
                   : scope === "competition"
@@ -356,29 +355,22 @@ export function DataPage() {
                 <ClipboardCopy size={15} />
                 复制备份（下载被拦截时用）
               </Button>
-              <p className="text-[11px] leading-relaxed text-ink-600">
-                JSON 包含 matches / decisions / reviews / trainingGoals / trainingSessions 五张表，
-                与本页导入格式一致，可以跨浏览器迁移或作为备份。训练目标是全局的，不按 Session
-                切分，所以三种范围里都会带上。
-                结算截图不在 JSON 里 —— 图片二进制不进备份文件，这也是旧备份格式能保持不变的原因。
-                CSV 只能表达两张平表（对局、决策），复盘正文和 Session 明细都不在里面 —— 需要完整关系请用
-                JSON。
+              <p className="text-xs leading-relaxed text-ink-400">
+                JSON 包含完整的对局、决策、复盘与训练目标数据，用于完整备份或迁移（不包含图片截图）。CSV 包含对局与决策表格数据。
               </p>
             </div>
           </Panel>
 
           <Panel>
-            <PanelHeader title="导入" subtitle="合并导入：同 id 记录以文件内容覆盖（不比较新旧），新记录追加" />
+            <PanelHeader title="导入" subtitle="合并导入：同 id 记录以文件内容覆盖" />
             <div className="flex flex-col gap-2 p-4">
               <input ref={fileRef} type="file" accept=".json,application/json" onChange={onFile} className="hidden" id="import-json" />
               <Button onClick={() => fileRef.current?.click()} disabled={busy}>
                 <Upload size={15} />
                 Import JSON
               </Button>
-              <p className="text-[11px] leading-relaxed text-ink-600">
-                选择之前导出的 JSON 文件。导入采用合并策略：文件里的同 id 记录会直接替换本地那一条 ——
-                重放旧备份会把本地更新过的记录倒写回去，想保住现状请先导出现状。
-                对局缺少 sessionId 或引用了未知 Session 时，会归入「日常训练」。
+              <p className="text-xs leading-relaxed text-ink-400">
+                选择之前导出的 JSON 文件。同 ID 的记录将被文件内容覆盖，新记录自动追加。缺少训练分类的记录归入「日常训练」。
               </p>
             </div>
           </Panel>
@@ -387,7 +379,6 @@ export function DataPage() {
         <Panel>
           <PanelHeader
             title="训练 Sessions"
-            subtitle="训练上下文：当前训练决定新对局默认记入哪个 Session，删除前需先移走比赛"
             action={
               <Button size="sm" onClick={openCreate} disabled={busy}>
                 <Plus size={13} /> 新建 Session

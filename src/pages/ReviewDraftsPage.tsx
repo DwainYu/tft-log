@@ -43,7 +43,6 @@ export function ReviewDraftsPage() {
     <>
       <PageHeader
         title="草稿箱"
-        subtitle="写了但还没写完的复盘 —— 内容已经存在本机，随时回来接着写"
         action={<Badge tone="muted">{drafts.length} 份未完成</Badge>}
       />
 
@@ -59,7 +58,7 @@ export function ReviewDraftsPage() {
         <Panel>
           <PanelHeader
             title="未完成的复盘"
-            subtitle="按对局时间从新到旧；删除只影响草稿，不动对局本身"
+            subtitle="删除只影响草稿，不动对局本身"
           />
           <ul className="flex flex-col divide-y divide-line">
             {drafts.map((d) => (
@@ -77,7 +76,7 @@ export function ReviewDraftsPage() {
                   >
                     {d.matchLabel}
                   </LinkButton>
-                  <p className="mt-0.5 text-[11px] text-ink-600">
+                  <p className="mt-0.5 text-xs text-ink-400">
                     {formatDateWeekday(d.playedAt)} {formatTime(d.playedAt)} · 必填 {d.filled}/
                     {d.total} 项
                   </p>

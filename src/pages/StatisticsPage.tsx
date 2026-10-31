@@ -232,7 +232,6 @@ export function StatisticsPage() {
     <>
       <PageHeader
         title="统计"
-        subtitle="只展示数据，不下结论 —— 判断留给你的复盘"
         action={scopeControl}
       />
 
@@ -269,7 +268,7 @@ export function StatisticsPage() {
               sub="有对局的连续天数"
             />
           </div>
-          <p className="border-t border-line px-4 py-2.5 text-[11px] text-ink-600">
+          <p className="border-t border-line px-4 py-2.5 text-xs text-ink-400">
             复盘覆盖率 <span className="num text-ink-400">{pct(reviewCov.rate)}</span>
             （{reviewCov.marked} / {reviewCov.total} 局）· 按四项必填规则判定完整{" "}
             <span className="num text-ink-400">{reviewCov.complete}</span> 局
@@ -281,7 +280,7 @@ export function StatisticsPage() {
         <Panel>
           <PanelHeader
             title="最近趋势"
-            subtitle="蓝点为 Top4；虚线为近 20 场平均名次"
+            subtitle="虚线为近 20 场平均名次"
           />
           <div className="flex flex-col gap-4 p-4">
             {/* Window numbers as one compact strip: they give the chart its
@@ -319,7 +318,7 @@ export function StatisticsPage() {
         <Panel>
           <PanelHeader
             title="错误统计"
-            subtitle="来自每局复盘的 Primary Mistake · 点击柱子查看这几局"
+            subtitle="来自每局复盘的主要问题"
           />
           {mistakesUnclassifiedOnly ? (
             <div className="flex flex-col items-start gap-2 p-4">

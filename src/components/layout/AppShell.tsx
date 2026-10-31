@@ -16,7 +16,6 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { AddMatchButton } from "../../components/matches/AddMatchButton";
 import { Select } from "../ui/Field";
 import { useTheme } from "../../lib/theme";
 import { useSession } from "../../services/session-context";
@@ -101,8 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="mt-auto">
-            <AddMatchButton />
-            <p className="mt-4 text-[11px] leading-relaxed text-ink-600">
+            <p className="text-xs leading-relaxed text-ink-400">
               数据全部保存在本机浏览器
             </p>
           </div>
@@ -121,7 +119,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Brand />
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
-          <AddMatchButton compact />
         </div>
         <div className="w-full lg:hidden">
           <SessionSwitcher compact />

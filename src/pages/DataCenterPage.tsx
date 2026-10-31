@@ -1,11 +1,9 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import {
   ArrowUp,
-  Compass,
   ExternalLink,
   Filter,
   Info,
-  ShieldCheck,
 } from "lucide-react";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -65,34 +63,8 @@ export function DataCenterPage() {
       {/* 1. 页面 Header */}
       <PageHeader
         title="TFT 数据中心"
-        subtitle="精选云顶之弈数据网站与实用工具，帮助你找到合适的数据、攻略和辅助工具。"
+        subtitle="精选云顶之弈数据网站与实用工具"
       />
-
-      {/* 原则与设计说明卡片 */}
-      <Panel className="border-gold-500/25 bg-gold-500/5">
-        <div className="flex flex-col gap-2.5 p-4 text-xs text-ink-200">
-          <div className="flex items-start gap-2 text-sm font-semibold text-gold-300">
-            <Compass size={17} className="mt-0.5 shrink-0" />
-            <span>不重复造轮子，发现优秀工具，了解如何使用</span>
-          </div>
-          <p className="leading-relaxed text-ink-200">
-            这里收录的是经过实际筛选的精选第三方站点与工具。我们不采集或存储第三方数据，不使用 iframe
-            嵌入，也不在页面加载时发起任何第三方外部请求。所有介绍、教程与访问建议均为本地静态内容，所有外部站点一律在新标签页安全打开。
-          </p>
-          <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-ink-400">
-            <span className="flex items-center gap-1 text-gold-400">
-              <ShieldCheck size={13} />
-              <span>零外部网络请求</span>
-            </span>
-            <span>·</span>
-            <span>无 iframe 嵌入</span>
-            <span>·</span>
-            <span>精选 6 大推荐工具</span>
-            <span>·</span>
-            <span>附带详细上手教程</span>
-          </div>
-        </div>
-      </Panel>
 
       {/* 2. 按需求快速寻找工具（快捷分类入口） */}
       <section aria-label="按需求筛选网站">
@@ -155,13 +127,10 @@ export function DataCenterPage() {
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-semibold text-ink-50">推荐网站总览</h2>
-            <Badge tone="neutral" className="text-[11px]">
+            <Badge tone="neutral">
               共 {filteredSites.length} 个站点
             </Badge>
           </div>
-          <span className="hidden text-[11px] text-ink-400 sm:inline">
-            卡片提供一句话介绍与快捷外链，下方附详细使用教程
-          </span>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -181,9 +150,6 @@ export function DataCenterPage() {
         <div className="flex items-start justify-between gap-3 border-b border-line pb-2">
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-ink-50">各网站详细介绍与使用指南</h2>
-            <p className="mt-0.5 text-xs text-ink-400">
-              包含核心功能、适用场景、简明操作步骤与使用建议
-            </p>
           </div>
           <span className="shrink-0 whitespace-nowrap pt-0.5 text-xs text-ink-400">
             {filteredSites.length}/{TFT_SITES.length} 站

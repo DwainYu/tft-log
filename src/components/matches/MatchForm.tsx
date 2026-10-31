@@ -125,7 +125,7 @@ export function MatchForm({
 
       {/* 先选场景：开局时刻不该被名次、结束血量这些「打完才知道」的格子堵住。 */}
       <Panel>
-        <PanelHeader title="0 · 这局记到哪一步" subtitle="同一条记录可以随时再打开继续补" />
+        <PanelHeader title="记录阶段" />
         <div className="flex flex-col gap-3 p-4">
           <div role="group" aria-label="记录场景" className="flex flex-wrap gap-2">
             {RECORD_MODES.map((m) => {
@@ -155,7 +155,7 @@ export function MatchForm({
       </Panel>
 
       <Panel>
-        <PanelHeader title="A · 基础信息" subtitle="日期必填，开始/结束时间选填" />
+        <PanelHeader title="基础信息" />
         <div className="flex flex-col gap-4 p-4">
           {showResultFacts && (
             <Field
@@ -264,8 +264,7 @@ export function MatchForm({
 
       <Panel>
         <PanelHeader
-          title="B · 对局状态"
-          subtitle={recordMode === "ongoing" ? "打完才知道，现在可以全留空" : undefined}
+          title="对局状态"
         />
         <div className="flex flex-col gap-4 p-4">
           <div className="grid gap-3 sm:grid-cols-3">
@@ -284,12 +283,7 @@ export function MatchForm({
             <Field
               label="结束时剩余血量"
               htmlFor="f-health"
-              hint={
-                <span className="leading-relaxed">
-                  这局结束（或被淘汰）时你剩余的玩家生命值，0 – 100；
-                  不是开局血量，也不是过程中某一时刻的血量。不知道就留空。
-                </span>
-              }
+              hint="0 – 100，未知可留空"
             >
               <Input
                 id="f-health"
@@ -333,8 +327,7 @@ export function MatchForm({
 
       <Panel>
         <PanelHeader
-          title="C · 阵容 / 装备 / 强化"
-          subtitle="MVP 阶段允许纯文本，例如 主C / 主坦 / 副C"
+          title="阵容与装备"
         />
         <div className="flex flex-col gap-4 p-4">
           <Field label="最终阵容名称" htmlFor="f-comp">
@@ -349,7 +342,6 @@ export function MatchForm({
             <Field
               label="主要羁绊"
               htmlFor="f-traits"
-              hint="本局最终阵容实际拥有的羁绊；阵容名是另外一回事"
             >
               <TraitSelector
                 id="f-traits"
@@ -397,7 +389,7 @@ export function MatchForm({
             <Field
               label="开局事件（Opening Encounter）"
               htmlFor="f-encounter"
-              hint="开局前由本局随机决定的全局条件；和「强化符文」里你自己选的那三个不是一回事"
+              hint="开局前本局随机决定的全局条件"
             >
               <EncounterSelector
                 id="f-encounter"
@@ -479,11 +471,11 @@ export function MatchForm({
           </Button>
         )}
         {!draft.placement && (
-          <span className="flex items-center gap-1 text-[11px] text-ink-600">
+          <span className="flex items-center gap-1 text-xs text-ink-400">
             <Zap size={12} />{" "}
             {placementRequired
-              ? "想更快？侧边栏的「快速记录一局」只要 20 秒"
-              : "名次等打完再回来补，这条记录会一直在这儿"}
+              ? "快捷键 1–8 可选定名次"
+              : "名次等打完后再补填"}
           </span>
         )}
       </div>

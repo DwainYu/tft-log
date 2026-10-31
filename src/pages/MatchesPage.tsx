@@ -57,7 +57,7 @@ export function MatchesPage() {
     <>
       <PageHeader
         title="对局"
-        subtitle={`${totalLogged?.length ?? "…"} 场对局记录 · 支持搜索、筛选与排序`}
+        subtitle={`${totalLogged?.length ?? "…"} 场对局记录`}
         action={<AddMatchButton />}
       />
 
@@ -76,9 +76,6 @@ export function MatchesPage() {
                 <option value="all">全部训练</option>
               </Select>
             </label>
-            {scope === "session" && (
-              <span className="text-[11px] text-ink-600">只看当前训练下的对局，复盘列表同样适用</span>
-            )}
           </div>
           <MatchFilters
             query={query}

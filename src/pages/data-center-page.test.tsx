@@ -13,14 +13,12 @@ beforeEach(() => {
 });
 
 describe("Data Center Page (V2)", () => {
-  it("renders page title and zero-runtime-fetch policy statement", () => {
+  it("renders page title and header description", () => {
     render();
     expect(screen.getByRole("heading", { name: "TFT 数据中心" })).toBeInTheDocument();
     expect(
-      screen.getByText(/精选云顶之弈数据网站与实用工具，帮助你找到合适的数据、攻略和辅助工具。/),
+      screen.getByText(/精选云顶之弈数据网站与实用工具/),
     ).toBeInTheDocument();
-    expect(screen.getByText(/不重复造轮子，发现优秀工具，了解如何使用/)).toBeInTheDocument();
-    expect(screen.getByText(/零外部网络请求/)).toBeInTheDocument();
   });
 
   it("renders all 6 curated recommended sites and their cards", () => {

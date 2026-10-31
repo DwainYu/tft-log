@@ -24,7 +24,6 @@ export function WeeklyReviewPage() {
     <>
       <PageHeader
         title="周复盘"
-        subtitle={`由 ${activeSummaryProvider.label} 生成 · 纯本地统计，不外传`}
         action={
           <div className="flex items-center gap-1.5">
             <Button size="sm" variant="ghost" onClick={() => setOffset((o) => o - 1)} title="上一周">

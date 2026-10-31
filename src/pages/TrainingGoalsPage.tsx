@@ -73,7 +73,6 @@ export function TrainingGoalsPage() {
     <>
       <PageHeader
         title="训练目标"
-        subtitle="把反复出现的错误变成一个明确、可执行的练习目标"
         action={
           <Button variant="primary" onClick={() => { setCreating(true); setErrors([]); }}>
             <Plus size={15} />
@@ -87,7 +86,7 @@ export function TrainingGoalsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <Target size={18} className="text-gold-300" />
             <div>
-              <div className="text-[11px] uppercase tracking-wide text-ink-600">当前训练目标</div>
+              <div className="text-xs uppercase tracking-wide text-ink-400">当前训练目标</div>
               <div className="text-sm font-semibold text-gold-300">{active[0].title}</div>
             </div>
             {active[0].description && (

@@ -32,7 +32,6 @@ export function MatchFormPage({ mode }: { mode: "create" | "edit" }) {
     <>
       <PageHeader
         title={title}
-        subtitle="完整记录：基础信息 / 对局状态 / 阵容装备"
         action={
           <>
             <Button variant="ghost" onClick={openQuickAdd}>

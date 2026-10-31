@@ -196,7 +196,7 @@ export function QuickAddDialog({
       open={open}
       onClose={onClose}
       title="快速记录一局"
-      subtitle={`名次 → 阵容 → 问题 → 保存，一分钟内完成 · 记入「${activeSession?.name ?? "日常训练"}」`}
+      subtitle={`记入「${activeSession?.name ?? "日常训练"}」`}
       size="lg"
       footer={
         <>

@@ -114,7 +114,7 @@ export function GuidePage() {
     <div ref={topRef}>
       <PageHeader
         title="使用指南"
-        subtitle="TFT 弈记怎么记、怎么看、怎么复盘 —— 3 分钟读完核心用法"
+        subtitle="核心概念与使用建议"
         action={
           <Button variant="primary" onClick={openQuickAdd}>
             去记一局
