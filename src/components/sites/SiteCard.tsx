@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { ArrowUpRight, BookOpen, ExternalLink } from "lucide-react";
 import { Badge } from "../ui/Badge";
 import type { TftSite } from "../../data/tft-sites";
+import { SiteIcon } from "./SiteIcon";
 
 export interface SiteCardProps {
   site: TftSite;
@@ -10,9 +10,6 @@ export interface SiteCardProps {
 }
 
 export function SiteCard({ site, onViewGuide, guideExpanded = false }: SiteCardProps) {
-  const [faviconFailed, setFaviconFailed] = useState(false);
-  const showFavicon = Boolean(site.faviconUrl) && !faviconFailed;
-
   return (
     <article
       data-testid={`site-card-${site.id}`}
@@ -22,29 +19,7 @@ export function SiteCard({ site, onViewGuide, guideExpanded = false }: SiteCardP
         {/* Header row: Brand logo/initials + Name + Category + Direct external link */}
         <div className="flex items-start justify-between gap-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
-            {showFavicon ? (
-              <span
-                className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-line bg-base-850"
-                aria-hidden="true"
-              >
-                <img
-                  src={site.faviconUrl}
-                  alt=""
-                  loading="lazy"
-                  decoding="async"
-                  referrerPolicy="no-referrer"
-                  className="size-full object-contain"
-                  onError={() => setFaviconFailed(true)}
-                />
-              </span>
-            ) : (
-              <span
-                className={`flex size-10 shrink-0 items-center justify-center rounded-lg border font-mono text-xs font-bold tracking-wider transition-colors ${site.brandAccent.bg} ${site.brandAccent.text} ${site.brandAccent.border}`}
-                aria-hidden="true"
-              >
-                {site.shortName}
-              </span>
-            )}
+            <SiteIcon site={site} />
             <div className="min-w-0">
               <h3 className="text-sm font-semibold leading-snug text-ink-50 group-hover:text-gold-300">
                 {site.name}

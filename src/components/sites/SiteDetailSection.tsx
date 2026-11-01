@@ -12,6 +12,7 @@
 import { Badge } from "../ui/Badge";
 import { Panel } from "../ui/Panel";
 import type { TftSite } from "../../data/tft-sites";
+import { SiteIcon } from "./SiteIcon";
 
 export interface SiteDetailSectionProps {
   site: TftSite;
@@ -31,11 +32,8 @@ export function SiteDetailSection({ site, expanded, onToggle }: SiteDetailSectio
             aria-controls={`guide-content-${site.id}`}
             className="flex w-full min-w-0 items-start gap-2.5 rounded-lg p-1 text-left transition-colors hover:bg-base-800/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold-500/60 sm:flex-1"
           >
-            <span
-              className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded border font-mono text-[11px] font-bold ${site.brandAccent.bg} ${site.brandAccent.text} ${site.brandAccent.border}`}
-              aria-hidden="true"
-            >
-              {site.shortName}
+            <span className="mt-0.5 shrink-0">
+              <SiteIcon site={site} size={24} />
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex flex-wrap items-center gap-2">
