@@ -65,13 +65,6 @@ export function SiteCard({ site, onViewGuide, guideExpanded = false }: SiteCardP
               {site.language}
             </Badge>
           </div>
-
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-ink-400">大陆访问:</span>
-            <Badge tone={site.badgeTone} className="text-[10px]">
-              {site.accessStatusText}
-            </Badge>
-          </div>
         </div>
 
         <div className="flex items-center gap-2 pt-1">

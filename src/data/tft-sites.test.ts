@@ -43,9 +43,33 @@ describe("TFT sites catalog (Data Center V2)", () => {
       expect(site.tutorial.length).toBeGreaterThanOrEqual(3);
       expect(site.recommendations.length).toBeGreaterThanOrEqual(1);
       expect(["中文", "英文"]).toContain(site.language);
-      expect(["accessible", "slow", "unconfirmed"]).toContain(site.mainlandAccess);
       expect(site.lastVerified).toBe("2026-10-31");
     }
+  });
+
+  it("does not expose or mention regional access status", () => {
+    for (const site of TFT_SITES) {
+      expect("mainlandAccess" in site).toBe(false);
+      expect("accessStatusText" in site).toBe(false);
+      expect("accessNote" in site).toBe(false);
+      expect("badgeTone" in site).toBe(false);
+    }
+
+    const allCopy = [
+      ...SITE_CATEGORIES.map((c) => `${c.label} ${c.description}`),
+      ...TFT_SITES.flatMap((site) => [
+        site.tagline,
+        site.description,
+        ...site.coreFeatures,
+        ...site.useCases,
+        ...site.tutorial.flatMap((step) => [step.title, step.detail]),
+        ...site.recommendations,
+      ]),
+    ].join("\n");
+
+    expect(allCopy).not.toMatch(
+      /大陆访问|国内访问|中国大陆|地区访问|境内|境外|访问状态|待确认|网络限制|无法访问|访问受限|访问较慢|可访问|连通|网络环境|实机测试/,
+    );
   });
 
   it("strictly maps every site to a declared category", () => {
@@ -100,7 +124,6 @@ describe("TFT sites catalog (Data Center V2)", () => {
       ...site.useCases,
       ...site.tutorial.flatMap((step) => [step.title, step.detail]),
       ...site.recommendations,
-      site.accessNote,
     ].join("\n");
 
     expect(text).not.toMatch(/法杖|Charms|charms/);
@@ -161,7 +184,6 @@ describe("TFT sites catalog (Data Center V2)", () => {
       ...site.coreFeatures,
       ...site.tutorial.map((s) => s.detail),
       ...site.recommendations,
-      site.accessNote,
     ].join("\n");
 
     // the user-confirmed fact: Set 17 support was dropped, not "outdated"
@@ -171,7 +193,6 @@ describe("TFT sites catalog (Data Center V2)", () => {
     expect(text).not.toMatch(/滞后|落后|仅支持 Set 17|版本延迟/);
     // AI verification reminder must survive the version-note rewrite
     expect(text).toMatch(/切勿将 AI 回答当作绝对真理/);
-    expect(site.accessNote).toMatch(/中英双语/);
   });
 });
 

@@ -2,14 +2,13 @@
  * TFT Data Center Sites Catalog (V2).
  *
  * Curated directory of 6 verified third-party TFT websites with Chinese
- * introductions, practical tutorials, use case guidance, and verified
- * mainland access experiences.
+ * introductions, practical tutorials, and use case guidance.
  *
  * Principles:
  * 1. Zero runtime network requests: purely local static data.
  * 2. No iframe, no scraping, no copying third-party data into local storage.
  * 3. All external links open in a new tab with rel="noopener noreferrer".
- * 4. Access notes are subjective test observations recorded on 2026-10-31.
+ * 4. Site information was verified on 2026-10-31.
  */
 
 export type SiteCategory =
@@ -38,8 +37,6 @@ export const SITE_CATEGORIES: CategoryOption[] = [
   { id: "data-explorer", label: "综合数据探索", description: "国内多维度大数据交叉探索与胜率检验" },
 ];
 
-export type MainlandAccessStatus = "accessible" | "slow" | "unconfirmed";
-
 export interface TutorialStep {
   title: string;
   detail: string;
@@ -60,10 +57,6 @@ export interface TftSite {
   tutorial: TutorialStep[];
   recommendations: string[];
   language: "中文" | "英文";
-  mainlandAccess: MainlandAccessStatus;
-  accessStatusText: string;
-  accessNote: string;
-  badgeTone: "good" | "gold" | "muted";
   lastVerified: string;
   brandAccent: {
     bg: string;
@@ -119,10 +112,6 @@ export const TFT_SITES: TftSite[] = [
       "优先核验核心神装：如果缺少关键主 C 或前排核心装，建议参考其备选分支提前转向。",
     ],
     language: "英文",
-    mainlandAccess: "accessible",
-    accessStatusText: "可访问",
-    accessNote: "国内网络环境下测试可正常打开访问，页面载入与交互较为顺畅。",
-    badgeTone: "good",
     lastVerified: "2026-10-31",
     brandAccent: {
       bg: "bg-sky-500/10",
@@ -179,10 +168,6 @@ export const TFT_SITES: TftSite[] = [
       "注意工具分工：Board Planner 负责摆位与开局寻路，DPS 和坦度要分别到 DPS Calculator 与 Tank Calculator 查看，不要混为一谈。",
     ],
     language: "英文",
-    mainlandAccess: "accessible",
-    accessStatusText: "可访问",
-    accessNote: "国内网络环境下测试可直接打开访问，棋盘画布渲染响应正常。",
-    badgeTone: "good",
     lastVerified: "2026-10-31",
     brandAccent: {
       bg: "bg-emerald-500/10",
@@ -236,13 +221,8 @@ export const TFT_SITES: TftSite[] = [
     ],
     recommendations: [
       "这是机制备查表，不是阵容推荐站：适合局前预习或在两局之间查数值，不提供阵容强度结论。",
-      "访问较慢，建议提前打开：国内访问可以连通但加载偏慢，可在开局前先在独立标签页打开。",
     ],
     language: "英文",
-    mainlandAccess: "slow",
-    accessStatusText: "访问较慢",
-    accessNote: "国内网络环境下可以连通，但部分静态资源加载较慢，建议耐心等待。",
-    badgeTone: "gold",
     lastVerified: "2026-10-31",
     brandAccent: {
       bg: "bg-purple-500/10",
@@ -299,10 +279,6 @@ export const TFT_SITES: TftSite[] = [
       "关注评级变动与更新说明：王者团队在微调补丁后常有针对性简评，能帮助你捕捉到版本细节调整。",
     ],
     language: "英文",
-    mainlandAccess: "unconfirmed",
-    accessStatusText: "待确认",
-    accessNote: "不同地区与网络接入商体验存在差异，尚未形成确定结论，建议自行在浏览器中打开测试。",
-    badgeTone: "muted",
     lastVerified: "2026-10-31",
     brandAccent: {
       bg: "bg-amber-500/10",
@@ -357,10 +333,6 @@ export const TFT_SITES: TftSite[] = [
       "切勿将 AI 回答当作绝对真理：AI 工具核心价值在于思路启发与知识速查，切记与实际发牌情况及客观大数据相互印证。",
     ],
     language: "中文",
-    mainlandAccess: "accessible",
-    accessStatusText: "可访问",
-    accessNote: "国内网络环境下测试可稳定访问，中英双语（中文优先），使用体验顺畅。",
-    badgeTone: "good",
     lastVerified: "2026-10-31",
     brandAccent: {
       bg: "bg-teal-500/10",
@@ -420,10 +392,6 @@ export const TFT_SITES: TftSite[] = [
       "使用体验注意事项（个人感受）：个人使用中感觉其检索和探索功能全面，但随着加载内容增多，部分页面操作体验会变得不够轻快流畅。此为主观日常使用感受，非客观基准测试结果。",
     ],
     language: "中文",
-    mainlandAccess: "accessible",
-    accessStatusText: "可访问",
-    accessNote: "国内网络环境下测试可正常打开访问，综合数据探索功能全面。",
-    badgeTone: "good",
     lastVerified: "2026-10-31",
     brandAccent: {
       bg: "bg-indigo-500/10",

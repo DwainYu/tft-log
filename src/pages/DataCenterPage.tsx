@@ -24,7 +24,7 @@ import { SiteDetailSection } from "../components/sites/SiteDetailSection";
  * - Does not reinvent third-party data features.
  * - Does not scrape, store, or copy third-party data.
  * - Does not embed third parties (no iframe, zero external network requests).
- * - Focused on Chinese introductions, tutorials, use cases, and mainland access notes.
+ * - Focused on Chinese introductions, tutorials, and use cases.
  */
 export function DataCenterPage() {
   const [activeCategory, setActiveCategory] = useState<"all" | SiteCategory>("all");
@@ -168,13 +168,13 @@ export function DataCenterPage() {
         </div>
       </section>
 
-      {/* 5. 访问体验和使用注意事项 */}
-      <section aria-label="访问体验与注意事项">
+      {/* 5. 使用注意事项 */}
+      <section aria-label="使用注意事项">
         <Panel className="border-line bg-base-900/90">
           <div className="space-y-4 p-4 sm:p-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-ink-50">
               <Info size={16} className="text-gold-400" />
-              <span>访问体验与使用注意事项</span>
+              <span>使用注意事项</span>
             </div>
 
             <div className="grid gap-3 text-xs leading-relaxed text-ink-200 sm:grid-cols-2">
@@ -193,14 +193,6 @@ export function DataCenterPage() {
               </div>
 
               <div className="space-y-1.5 rounded-lg border border-line bg-base-850/60 p-3">
-                <div className="font-semibold text-ink-50">中国大陆访问体验（个人测试记录）</div>
-                <p className="text-ink-400">
-                  本页面所列的访问状态为开发者在 2026-10-31
-                  的个人实机测试记录，因不同地区网络服务商与路由波动，不作为永久连通性保证。
-                </p>
-              </div>
-
-              <div className="space-y-1.5 rounded-lg border border-line bg-base-850/60 p-3">
                 <div className="font-semibold text-ink-50">理性参考与交叉验证</div>
                 <p className="text-ink-400">
                   模拟工具与 AI 建议提供思路启发，大数据提供概率倾向。实际对局受发牌员随机性、同局对手对位等多重因素影响，请结合自己的实战体验灵活决策。
@@ -208,7 +200,7 @@ export function DataCenterPage() {
               </div>
             </div>
 
-            {/* 访问状态汇总表 */}
+            {/* 站点汇总表 */}
             <div className="overflow-x-auto rounded-lg border border-line">
               <table className="w-full text-left text-xs">
                 <thead className="border-b border-line bg-base-800/80 text-[11px] text-ink-400">
@@ -216,7 +208,6 @@ export function DataCenterPage() {
                     <th className="px-3 py-2 font-medium">网站名称</th>
                     <th className="px-3 py-2 font-medium">核心定位</th>
                     <th className="px-3 py-2 font-medium">语言</th>
-                    <th className="px-3 py-2 font-medium">中国大陆访问体验</th>
                     <th className="px-3 py-2 font-medium text-right">核验日期</th>
                   </tr>
                 </thead>
@@ -238,11 +229,6 @@ export function DataCenterPage() {
                       <td className="px-3 py-2.5">
                         <Badge tone={site.language === "中文" ? "info" : "neutral"} className="text-[10px]">
                           {site.language}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <Badge tone={site.badgeTone} className="text-[10px]">
-                          {site.accessStatusText}
                         </Badge>
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono text-[11px] text-ink-400">

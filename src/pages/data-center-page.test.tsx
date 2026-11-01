@@ -147,4 +147,12 @@ describe("Data Center Page (V2)", () => {
     render();
     expect(document.querySelectorAll("iframe").length).toBe(0);
   });
+
+  it("does not show regional access status copy", () => {
+    render();
+    const bodyText = document.body.textContent ?? "";
+    expect(bodyText).not.toMatch(
+      /大陆访问|中国大陆|访问体验|访问状态|待确认|网络限制|无法访问|访问受限/,
+    );
+  });
 });

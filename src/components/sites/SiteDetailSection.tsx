@@ -168,18 +168,9 @@ export function SiteDetailSection({ site, expanded, onToggle }: SiteDetailSectio
                     {site.language}
                   </Badge>
                 </div>
-
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span>大陆访问测试:</span>
-                  <Badge tone={site.badgeTone} className="text-[10px]">
-                    {site.accessStatusText}
-                  </Badge>
-                  <span className="text-[11px] text-ink-400">({site.accessNote})</span>
-                </div>
               </div>
 
               <div className="ml-auto flex items-center gap-3">
-                <span className="text-[11px] text-ink-400">测试记录: {site.lastVerified}</span>
                 <a
                   href={site.url}
                   target="_blank"
