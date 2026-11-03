@@ -65,7 +65,7 @@ export function MatchesPage() {
         <Panel>
           <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
             <label className="flex items-center gap-2 text-xs text-ink-400">
-              数据范围
+              <span className="shrink-0">数据范围</span>
               <Select
                 aria-label="数据范围"
                 value={scope}
