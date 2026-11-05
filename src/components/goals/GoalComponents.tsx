@@ -199,7 +199,7 @@ export function GoalStatusActions({
               "inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] transition-colors",
               b.danger
                 ? "text-ink-600 hover:bg-bad/15 hover:text-bad"
-                : "text-ink-400 hover:bg-base-800 hover:text-ink-100",
+                : "text-ink-400 hover:bg-base-800 hover:text-ink-200",
             ].join(" ")}
           >
             <b.icon size={12} />

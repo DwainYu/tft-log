@@ -66,13 +66,13 @@ export function ReviewDraftsPage() {
                 key={d.matchId}
                 className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3"
               >
-                <FileClock size={16} className="shrink-0 text-ink-500" />
+                <FileClock size={16} className="shrink-0 text-ink-400" />
                 <div className="min-w-0 flex-1">
                   <LinkButton
                     to={`/matches/${d.matchId}/review`}
                     size="sm"
                     variant="ghost"
-                    className="!px-0 text-sm font-medium text-ink-100"
+                    className="!px-0 text-sm font-medium !text-ink-50"
                   >
                     {d.matchLabel}
                   </LinkButton>
@@ -119,7 +119,7 @@ export function ReviewDraftsPage() {
           </>
         }
       >
-        <p className="text-sm leading-relaxed text-ink-300">
+        <p className="text-sm leading-relaxed text-ink-200">
           草稿里写了一半的内容会被清空，对局本身、已有的决策记录和已完成复盘都不受影响。
           这一步无法撤销。
         </p>

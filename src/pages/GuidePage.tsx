@@ -48,7 +48,7 @@ function Sub({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="border-l-2 border-gold-500/30 pl-3">
       <h3 className="text-[13px] font-semibold text-gold-300">{title}</h3>
-      <div className="mt-1 space-y-1.5 text-[13px] leading-relaxed text-ink-300">{children}</div>
+      <div className="mt-1 space-y-1.5 text-[13px] leading-relaxed text-ink-400">{children}</div>
     </div>
   );
 }
@@ -62,7 +62,7 @@ function Steps({ items }: { items: { head: string; body?: ReactNode }[] }) {
             {i + 1}
           </span>
           <div className="min-w-0">
-            <div className="text-[13px] font-medium text-ink-100">{s.head}</div>
+            <div className="text-[13px] font-medium text-ink-50">{s.head}</div>
             {s.body && <div className="mt-0.5 text-xs leading-relaxed text-ink-400">{s.body}</div>}
           </div>
         </li>
@@ -73,7 +73,7 @@ function Steps({ items }: { items: { head: string; body?: ReactNode }[] }) {
 
 function Tip({ children }: { children: ReactNode }) {
   return (
-    <p className="rounded-lg border border-gold-500/25 bg-gold-500/5 px-3 py-2 text-xs leading-relaxed text-ink-300">
+    <p className="rounded-lg border border-gold-500/25 bg-gold-500/5 px-3 py-2 text-xs leading-relaxed text-ink-400">
       <span className="font-semibold text-gold-300">提示 </span>
       {children}
     </p>
@@ -86,7 +86,7 @@ function Key({ children }: { children: ReactNode }) {
 
 function Label({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded border border-line bg-base-800 px-1 py-0.5 text-[11px] font-medium text-ink-100">
+    <span className="rounded border border-line bg-base-800 px-1 py-0.5 text-[11px] font-medium text-ink-50">
       {children}
     </span>
   );
@@ -128,7 +128,7 @@ export function GuidePage() {
             key={s.id}
             type="button"
             onClick={() => goTo(s.id)}
-            className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink-300 hover:bg-base-800 hover:text-ink-100"
+            className="rounded-lg border border-line px-3 py-1.5 text-xs text-ink-400 hover:bg-base-800 hover:text-ink-200"
           >
             {s.label}
           </button>

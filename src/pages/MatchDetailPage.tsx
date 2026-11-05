@@ -420,7 +420,7 @@ function TextRow({ label, value }: { label: string; value?: string }) {
   return (
     <div>
       <div className="text-[11px] uppercase tracking-wide text-ink-600">{label}</div>
-      <p className="mt-0.5 whitespace-pre-wrap text-sm text-ink-100">
+      <p className="mt-0.5 whitespace-pre-wrap text-sm">
         {value || <span className="text-ink-600">未填写</span>}
       </p>
     </div>

@@ -195,7 +195,7 @@ export function ReviewForm({
             <>
               草稿已自动保存 —— 关掉页面或刷新都不会丢，也可以从「草稿箱」回来继续。
               {autosave.savedAt !== null && (
-                <span className="ml-1 text-ink-500">
+                <span className="ml-1 text-ink-400">
                   最近保存 {formatClock(autosave.savedAt)}
                 </span>
               )}
