@@ -291,6 +291,7 @@ export const TFT_SITES: TftSite[] = [
     name: "TFTClarity",
     shortName: "TC",
     url: "https://tftclarity.cn/",
+    faviconUrl: "https://tftclarity.cn/favicon.png?v=20260727",
     category: "ai-query",
     categoryLabel: "AI 辅助查询",
     tagline: "通过 AI 辅助查询和理解云顶之弈相关内容，是我个人推荐的中文 TFT 工具。",

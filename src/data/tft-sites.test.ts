@@ -93,26 +93,20 @@ describe("TFT sites catalog (Data Center V2)", () => {
     expect(getSiteById("non-existent")).toBeUndefined();
   });
 
-  it("provides verified remote favicons only for sites with a real brand icon", () => {
-    const expectedDomains: Record<string, string> = {
-      "tft-flow": "tftflow.com",
-      tftraits: "tftraits.com",
-      "little-buddy-bot": "littlebuddybot.com",
-      "tft-academy": "tftacademy.com",
-      "data-tft": "datatft.com",
+  it("provides a verified remote favicon for every catalog site", () => {
+    const expectedFavicons: Record<string, string> = {
+      "tft-flow": "https://a.favicon.im/tftflow.com?larger=true",
+      tftraits: "https://a.favicon.im/tftraits.com?larger=true",
+      "little-buddy-bot": "https://a.favicon.im/littlebuddybot.com?larger=true",
+      "tft-academy": "https://a.favicon.im/tftacademy.com?larger=true",
+      "tft-clarity": "https://tftclarity.cn/favicon.png?v=20260727",
+      "data-tft": "https://a.favicon.im/datatft.com?larger=true",
     };
 
     for (const site of TFT_SITES) {
-      const expected = expectedDomains[site.id];
-      if (expected) {
-        expect(site.faviconUrl).toBe(`https://a.favicon.im/${expected}?larger=true`);
-      } else {
-        // TFTClarity's favicon service returns a generic placeholder, not a
-        // brand icon, so it must keep the letter badge fallback.
-        expect(site.faviconUrl).toBeUndefined();
-      }
+      expect(site.faviconUrl).toBe(expectedFavicons[site.id]);
     }
-    expect(Object.keys(expectedDomains)).toHaveLength(5);
+    expect(Object.keys(expectedFavicons)).toHaveLength(TFT_SITES.length);
   });
 
   it("never claims Little Buddy Bot has a search box or a charm section", () => {
