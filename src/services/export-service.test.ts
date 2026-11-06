@@ -9,10 +9,12 @@ import {
   wipeAll,
 } from "./export-service";
 import { addMatch } from "./match-service";
-import { addDecision } from "./decision-service";
-import { addGoal } from "./training-service";
-import { saveReview } from "./review-service";
+import { addDecision, allDecisions } from "./decision-service";
+import { addGoal, allGoals } from "./training-service";
+import { getReview, saveReview } from "./review-service";
+import { createSession } from "./session-service";
 import { matchRepository } from "../data/repository/match-repository";
+import { trainingSessionRepository } from "../data/repository/training-session-repository";
 import { resetDatabase } from "../test/db-helper";
 import { SNAPSHOT_SCHEMA_VERSION, type Match, type TrainingSession } from "../domain/types";
 
@@ -357,6 +359,161 @@ describe("import + sessions", () => {
     const report = await importSnapshot(snap);
     expect(report.sessions).toBe(0);
     expect(report.skipped).toBe(1);
+  });
+
+  it("keeps a match attached to a session that already exists locally", async () => {
+    const local = await createSession({
+      type: "competition",
+      name: "本地杯赛",
+      startDate: "2026-11-01",
+    });
+    const snap = await buildSnapshot();
+    snap.trainingSessions = [];
+    snap.matches = [
+      {
+        id: "local-session-match",
+        playedAt: "2026-11-01T13:00",
+        placement: 3,
+        reviewed: false,
+        sessionId: local.id,
+        createdAt: "2026-11-01T13:00:00.000Z",
+        updatedAt: "2026-11-01T13:00:00.000Z",
+      } as Match,
+    ];
+
+    const report = await importSnapshot(snap);
+    expect(report.sessions).toBe(0);
+    expect(report.skipped).toBe(0);
+    expect((await matchRepository.get("local-session-match"))?.sessionId).toBe(local.id);
+  });
+
+  it("does not treat a malformed session as a valid match association", async () => {
+    const snap = await buildSnapshot();
+    snap.trainingSessions.push({
+      id: "malformed-session",
+      type: "future-type",
+      name: "未来训练",
+      startDate: "2026-11-01",
+    } as unknown as TrainingSession);
+    snap.matches.push({
+      id: "malformed-session-match",
+      playedAt: "2026-11-01T13:00",
+      placement: 3,
+      reviewed: false,
+      sessionId: "malformed-session",
+    } as Match);
+
+    const report = await importSnapshot(snap);
+    expect(report.sessions).toBe(0);
+    expect(report.matches).toBe(1);
+    expect(report.skipped).toBe(1);
+    expect((await matchRepository.get("malformed-session-match"))?.sessionId).toBe("daily");
+  });
+
+  it("normalizes an empty sessionId to daily", async () => {
+    const snap = await buildSnapshot();
+    snap.matches.push({
+      id: "empty-session-match",
+      playedAt: "2026-11-01T13:00",
+      placement: 3,
+      reviewed: false,
+      sessionId: "",
+    } as Match);
+
+    await importSnapshot(snap);
+    expect((await matchRepository.get("empty-session-match"))?.sessionId).toBe("daily");
+  });
+
+  it("normalizes session defaults and preserves explicit timestamps", async () => {
+    const snap = await buildSnapshot();
+    snap.trainingSessions.push({
+      id: "defaulted-session",
+      type: "competition",
+      name: "  杯赛准备  ",
+      startDate: "2026-11-01",
+    } as unknown as TrainingSession);
+    snap.trainingSessions.push({
+      id: "explicit-session",
+      type: "competition",
+      name: "显式配置",
+      startDate: "2026-12-01",
+      active: false,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-02-01T00:00:00.000Z",
+    } as TrainingSession);
+
+    await importSnapshot(snap);
+    const defaulted = await trainingSessionRepository.get("defaulted-session");
+    expect(defaulted).toMatchObject({
+      name: "杯赛准备",
+      active: true,
+      description: undefined,
+      endDate: undefined,
+    });
+    expect(defaulted?.createdAt).toBeTruthy();
+    expect(defaulted?.updatedAt).toBe(defaulted?.createdAt);
+
+    const explicit = await trainingSessionRepository.get("explicit-session");
+    expect(explicit).toMatchObject({
+      active: false,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-02-01T00:00:00.000Z",
+    });
+  });
+});
+
+describe("import characterization · cross-table filtering", () => {
+  it("counts skips across every table while importing valid siblings", async () => {
+    const snap = await buildSnapshot();
+    snap.trainingSessions = [
+      {
+        id: "valid-session",
+        type: "competition",
+        name: "合法杯赛",
+        startDate: "2026-11-01",
+        active: true,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+      { id: "invalid-session", type: "future-type" },
+    ] as unknown as TrainingSession[];
+    snap.matches = [
+      {
+        id: "valid-match",
+        playedAt: "2026-11-01T13:00",
+        placement: 2,
+        reviewed: false,
+        sessionId: "valid-session",
+        createdAt: "2026-11-01T13:00:00.000Z",
+        updatedAt: "2026-11-01T13:00:00.000Z",
+      },
+      { id: "invalid-match", playedAt: "not-a-date", placement: 2 },
+    ] as unknown as Match[];
+    snap.decisions = [
+      { id: "valid-decision", matchId: "valid-match" },
+      { id: "orphan-decision", matchId: "missing-match" },
+    ] as never;
+    snap.reviews = [
+      { id: "valid-review", matchId: "valid-match" },
+      { id: "orphan-review", matchId: "missing-match" },
+    ] as never;
+    snap.trainingGoals = [
+      { id: "valid-goal", title: "合法目标" },
+      { id: "invalid-goal" },
+    ] as never;
+
+    const report = await importSnapshot(snap);
+    expect(report).toMatchObject({
+      sessions: 1,
+      matches: 1,
+      decisions: 1,
+      reviews: 1,
+      trainingGoals: 1,
+      skipped: 5,
+    });
+    expect(await allDecisions()).toHaveLength(1);
+    expect(await getReview("valid-match")).toBeDefined();
+    expect(await allGoals()).toHaveLength(1);
   });
 });
 

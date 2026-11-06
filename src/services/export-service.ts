@@ -1,28 +1,22 @@
 import { compositionUsageRepository } from "../data/repository/composition-usage-repository";
 import { decisionRepository } from "../data/repository/decision-repository";
 import { matchRepository } from "../data/repository/match-repository";
-import { openingPlanOrUndefined } from "../domain/match/opening";
-import { isPlacement } from "../domain/match/match";
 import { rebuildCompositionUsage } from "./composition-usage-service";
 import { reviewRepository } from "../data/repository/review-repository";
 import { trainingGoalRepository } from "../data/repository/training-goal-repository";
 import { trainingSessionRepository } from "../data/repository/training-session-repository";
 import {
   DAILY_SESSION_ID,
-  SESSION_TYPES,
   SNAPSHOT_SCHEMA_VERSION,
   type DatabaseSnapshot,
   type Decision,
   type Match,
-  type Review,
   type SessionType,
-  type TrainingGoal,
   type TrainingSession,
 } from "../domain/types";
 import { nowIso } from "../lib/utils";
-import { toDate, isValidWallClock } from "../lib/wallclock";
-import { validateMatchStaticData, encounterIdOrUndefined } from "../data/tft/match-links";
 import { deleteAllScreenshots, screenshotStorage } from "./screenshot-service";
+import { prepareImportSnapshot } from "./import-normalizer";
 
 /* ------------------------------------------------------------------ */
 /* Build                                                               */
@@ -231,12 +225,6 @@ export interface ImportReport {
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-const hasId = (r: Record<string, unknown>): boolean =>
-  typeof r.id === "string" && r.id.length > 0;
-
-const isDateOnly = (v: unknown): v is string =>
-  typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && toDate(v) !== null;
-
 /** Parse + sanity-check the JSON the player uploaded. Throws on bad shape. */
 export function parseSnapshot(text: string): DatabaseSnapshot {
   let raw: unknown;
@@ -283,93 +271,18 @@ export function parseSnapshot(text: string): DatabaseSnapshot {
  *    session, so an import can never create orphan "session-less" matches.
  */
 export async function importSnapshot(snapshot: DatabaseSnapshot): Promise<ImportReport> {
-  let skipped = 0;
+  const existingSessionIds = (await trainingSessionRepository.all()).map((s) => s.id);
+  const prepared = prepareImportSnapshot(snapshot, existingSessionIds, nowIso);
 
-  const rawSessions = Array.isArray(snapshot.trainingSessions) ? snapshot.trainingSessions : [];
-  const validSessions: TrainingSession[] = [];
-  for (const s of rawSessions) {
-    if (
-      !isRecord(s) ||
-      !hasId(s) ||
-      !SESSION_TYPES.includes(s.type) ||
-      typeof s.name !== "string" ||
-      !s.name.trim() ||
-      !isDateOnly(s.startDate) ||
-      (s.endDate !== undefined && !isDateOnly(s.endDate))
-    ) {
-      continue;
-    }
-    const now = nowIso();
-    validSessions.push({
-      id: s.id,
-      type: s.type,
-      name: s.name.trim(),
-      description: typeof s.description === "string" ? s.description : undefined,
-      startDate: s.startDate,
-      endDate: s.endDate ?? undefined,
-      active: typeof s.active === "boolean" ? s.active : true,
-      createdAt: typeof s.createdAt === "string" ? s.createdAt : now,
-      updatedAt: typeof s.updatedAt === "string" ? s.updatedAt : now,
-    });
-  }
   // sessions first — imported matches may reference the new sessions
-  await trainingSessionRepository.bulkPut(validSessions);
-
-  const knownSessionIds = new Set<string>([
-    DAILY_SESSION_ID,
-    ...(await trainingSessionRepository.all()).map((s) => s.id),
-  ]);
-
-  // Matches carrying canonical S18 ids are additionally gated. Placement is
-  // optional for in-progress or partially recognised games, but a present
-  // value must be 1-8. A missing or malformed `playedAt` is skipped because
-  // it would crash every date-reading page.
-  const validMatches = snapshot.matches.filter(
-    (m) =>
-      isRecord(m) &&
-      hasId(m) &&
-      (m.placement === undefined || isPlacement(m.placement)) &&
-      typeof m.playedAt === "string" &&
-      isValidWallClock(m.playedAt) &&
-      validateMatchStaticData(m).length === 0,
-  );
-  const matches: Match[] = validMatches.map((m) => ({
-    ...m,
-    sessionId:
-      typeof m.sessionId === "string" && m.sessionId.length > 0 && knownSessionIds.has(m.sessionId)
-        ? m.sessionId
-        : DAILY_SESSION_ID,
-    // A structured value the vocabulary does not know is dropped, not kept:
-    // it would otherwise land in a statistic nobody can reproduce. Both stay
-    // `undefined` (= never recorded) rather than being coerced, which is what
-    // keeps old records byte-identical to new ones that simply never touched
-    // these fields.
-    openingPlan: openingPlanOrUndefined(m.openingPlan),
-    encounterId: encounterIdOrUndefined(m.encounterId),
-  }));
-
-  const validMatchIds = new Set(matches.map((m) => m.id));
-  const decisions = snapshot.decisions.filter(
-    (d) => isRecord(d) && hasId(d) && typeof d.matchId === "string" && validMatchIds.has(d.matchId),
-  );
-  const reviews = snapshot.reviews.filter(
-    (r) => isRecord(r) && hasId(r) && typeof r.matchId === "string" && validMatchIds.has(r.matchId),
-  );
-  const trainingGoals = snapshot.trainingGoals.filter((g) => isRecord(g) && hasId(g) && typeof g.title === "string");
-
-  skipped +=
-    (rawSessions.length - validSessions.length) +
-    (snapshot.matches.length - matches.length) +
-    (snapshot.decisions.length - decisions.length) +
-    (snapshot.reviews.length - reviews.length) +
-    (snapshot.trainingGoals.length - trainingGoals.length);
+  await trainingSessionRepository.bulkPut(prepared.sessions);
 
   // children first, parents last — a review/decision is only useful with its match
   await Promise.all([
-    matchRepository.bulkPut(matches),
-    decisionRepository.bulkPut(decisions as Decision[]),
-    reviewRepository.bulkPut(reviews as Review[]),
-    trainingGoalRepository.bulkPut(trainingGoals as TrainingGoal[]),
+    matchRepository.bulkPut(prepared.matches),
+    decisionRepository.bulkPut(prepared.decisions),
+    reviewRepository.bulkPut(prepared.reviews),
+    trainingGoalRepository.bulkPut(prepared.trainingGoals),
   ]);
 
   // Composition usage is derived from matches, so it never travels inside a
@@ -382,12 +295,12 @@ export async function importSnapshot(snapshot: DatabaseSnapshot): Promise<Import
   }
 
   return {
-    matches: matches.length,
-    decisions: decisions.length,
-    reviews: reviews.length,
-    trainingGoals: trainingGoals.length,
-    sessions: validSessions.length,
-    skipped,
+    matches: prepared.matches.length,
+    decisions: prepared.decisions.length,
+    reviews: prepared.reviews.length,
+    trainingGoals: prepared.trainingGoals.length,
+    sessions: prepared.sessions.length,
+    skipped: prepared.skipped,
     importedAt: nowIso(),
   };
 }
